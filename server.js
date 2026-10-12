@@ -457,7 +457,7 @@ async function handle(req) {
       const message=clean(body.message,500),lang=clean(body.language,10);
       if(message.length<2||message.length>350)err('每次請輸入 2 至 350 字',400);
       if(!['zh-Hant','zh-Hans','en','ms','vi','th'].includes(lang))err('語言選項無效',400);
-      if(/(?:^|[^\d])\d[\d \-]{7,}\d|[^\s@]+@[^\s@]+\.[^\s@]+/.test(message))
+      if(/(?:^|[^\d])\d[\d \-]{6,}\d|[^\s@]+@[^\s@]+\.[^\s@]+/.test(message))
         return send({ok:true,mode:'rules',
           reply:'為保障私隱，請唔好喺聊天輸入電話、電郵、卡號、密碼或地址。請透過正式訂單表格提交聯絡資料。',
           requiresHuman:true});
