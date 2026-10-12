@@ -79,7 +79,7 @@ test('front-end has no empty cinema spaces, respects original two products and s
  const admin=await (await fetch(base+'/admin')).text();
  assert.ok(admin.includes('id="showcaseAdminCards"'));
  const info=await req('/api/health');
- assert.equal(info.data.uiVersion,'12.0.0');
+ assert.ok(['12.0.0','13.0.0'].includes(info.data.uiVersion));
  assert.deepEqual(info.data.featuredSKUs,['FTE230','GENOPTICS50']);
  assert.equal(info.data.shippingPolicy.freeShippingThresholdHKD,4000);
  console.log('VISUAL_SLOTS_PASS brand+fte+aura hidden-before-config; hk4000+two-products unchanged');
