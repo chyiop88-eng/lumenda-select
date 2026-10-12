@@ -44,10 +44,13 @@ let mediaInitPromise;
 function ensureTable() {
   if (!DB) throw new Error('Database not configured');
   if (!initPromise) {
-    initPromise = DB`CREATE TABLE IF NOT EXISTS lumenda_orders (
-      id text PRIMARY KEY, created_at timestamptz DEFAULT now(), status text NOT NULL,
-      market text NOT NULL, customer jsonb NOT NULL, items jsonb NOT NULL, note text
-    )`.catch(error => { initPromise = null; throw error; });
+    initPromise = (async()=>{
+      await DB`CREATE TABLE IF NOT EXISTS lumenda_orders (
+        id text PRIMARY KEY, created_at timestamptz DEFAULT now(), status text NOT NULL,
+        market text NOT NULL, customer jsonb NOT NULL, items jsonb NOT NULL, note text
+      )`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS referral_code text`;
+    })().catch(error => { initPromise = null; throw error; });
   }
   return initPromise;
 }
@@ -57,6 +60,28 @@ function ensureMediaTable(){
     key text PRIMARY KEY, mime text NOT NULL, data bytea NOT NULL, updated_at timestamptz DEFAULT now()
   )`.catch(error=>{mediaInitPromise=null;throw error;});
   return mediaInitPromise;
+}
+// Agent/referrer share links are public codes, never owner credentials.
+const AGENT_CODE_PATTERN=/^(AG|RF)[A-F0-9]{14}$/;
+let agentsInitPromise;
+function ensureAgentsTable(){
+  if(!DB)throw new Error('Database not configured');
+  if(!agentsInitPromise) agentsInitPromise=DB`CREATE TABLE IF NOT EXISTS lumenda_agents (
+    code text PRIMARY KEY,
+    name text NOT NULL,
+    kind text NOT NULL CHECK (kind IN ('agent','referrer')),
+    parent_code text REFERENCES lumenda_agents(code),
+    status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`.catch(e=>{agentsInitPromise=null;throw e;});
+  return agentsInitPromise;
+}
+async function activeReferralCode(value){
+  const code=clean(value,24).toUpperCase();
+  if(!AGENT_CODE_PATTERN.test(code))return null;
+  await ensureAgentsTable();
+  const rows=await DB`SELECT code FROM lumenda_agents WHERE code=${code} AND status='active' LIMIT 1`;
+  return rows[0]?.code||null;
 }
 async function serveMedia(key,method){
   try{await ensureMediaTable();const rows=await DB`SELECT mime,data,updated_at FROM lumenda_media WHERE key=${key} LIMIT 1`;if(rows.length){const data=rows[0].data;return new Response(method==='HEAD'?null:data,{headers:{'Content-Type':rows[0].mime,'Content-Length':String(data.length),'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex,nofollow'}});}}catch(e){console.error('Media read failed',e?.message);}
@@ -146,7 +171,7 @@ function validateOrder(body) {
   const customer={name,phone,phoneIntl,email,company:clean(person.company,120),
     contactMethod:clean(person.contactMethod,30),contactId:clean(person.contactId,100),
     shipping,paymentMethod,otherPayment,deliverySpeed,deliveryNote:clean(body.deliveryNote,300),shippingPolicy:{...SHIPPING_POLICY,freeShippingEligible:null}};
-  return {market,items,customer,note:clean(body.note,500)};
+  return {market,items,customer,note:clean(body.note,500),referralCandidate:clean(body.referralCode,24)};
 }
 // Basic in-memory burst limiter. For serious production traffic add managed protection.
 const attempts=new Map();
@@ -187,9 +212,52 @@ async function handle(req) {
 
   const path=new URL(req.url).pathname;
   if(path==='/api/health' && req.method==='GET')
-    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'9.1.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
+    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'11.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,agentInvitesEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
   if(path==='/api/markets' && req.method==='GET')
     return send({markets:MARKETS,paymentMode:'enquiry_only',paymentsLive:false,shippingPolicy:SHIPPING_POLICY});
+  if(path==='/api/admin/agents' && req.method==='GET'){
+    if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
+    try{
+      await ensureTable();await ensureAgentsTable();
+      const agents=await DB`SELECT a.code,a.name,a.kind,a.parent_code,a.status,a.created_at,COUNT(o.id)::int AS order_count
+        FROM lumenda_agents a LEFT JOIN lumenda_orders o ON o.referral_code=a.code
+        GROUP BY a.code ORDER BY a.created_at DESC LIMIT 250`;
+      return send({ok:true,agents});
+    }catch(e){console.error('Agent list failed',e?.code||e?.name);return send({ok:false,error:'代理列表暫時未能讀取'},503);}
+  }
+  if(path==='/api/admin/agents' && req.method==='POST'){
+    if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
+    try{
+      const body=await parseJSON(req);
+      const name=clean(body.name,90),kind=clean(body.kind,12),parentCode=clean(body.parentCode,24).toUpperCase()||null;
+      if(name.length<2||!['agent','referrer'].includes(kind))err('請填代理名稱及種類',400);
+      if(parentCode&&!AGENT_CODE_PATTERN.test(parentCode))err('上線代理邀請碼無效',400);
+      await ensureAgentsTable();
+      if(parentCode){
+        const parents=await DB`SELECT code FROM lumenda_agents WHERE code=${parentCode} AND kind='agent' AND status='active' LIMIT 1`;
+        if(!parents.length)err('上線代理不存在或已停用',400);
+      }
+      const code=(kind==='agent'?'AG':'RF')+randomBytes(7).toString('hex').toUpperCase();
+      const created=await DB`INSERT INTO lumenda_agents(code,name,kind,parent_code,status)
+        VALUES(${code},${name},${kind},${parentCode},'active')
+        RETURNING code,name,kind,parent_code,status,created_at`;
+      return send({ok:true,agent:{...created[0],order_count:0}},201);
+    }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
+      console.error('Agent creation failed',e?.code||e?.name);return send({ok:false,error:'建立代理邀請連結失敗'},503);}
+  }
+  if(path.startsWith('/api/admin/agents/')&&req.method==='PATCH'){
+    if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
+    try{
+      const code=path.slice('/api/admin/agents/'.length).toUpperCase();
+      if(!AGENT_CODE_PATTERN.test(code))err('邀請碼格式無效',400);
+      const body=await parseJSON(req);
+      if(!['active','inactive'].includes(body.status))err('無效狀態',400);
+      await ensureAgentsTable();
+      const changed=await DB`UPDATE lumenda_agents SET status=${body.status} WHERE code=${code} RETURNING code,status`;
+      return send({ok:!!changed.length},changed.length?200:404);
+    }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
+      console.error('Agent update failed',e?.code||e?.name);return send({ok:false,error:'無法更新邀請連結'},503);}
+  }
   if(path==='/api/admin/login' && req.method==='POST') {
     if(!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
     if(adminLoginLimited(req)) return send({ok:false,error:'嘗試次數太多，請 15 分鐘後再試。'},429);
@@ -216,9 +284,10 @@ async function handle(req) {
       const data=validateOrder(await parseJSON(req));
       const id='LMD-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+randomBytes(5).toString('hex').toUpperCase();
       const customer=JSON.stringify(data.customer),items=JSON.stringify(data.items);
-      await DB`INSERT INTO lumenda_orders(id,status,market,customer,items,note)
-        VALUES (${id},${'pending_quote'},${data.market},${customer}::jsonb,${items}::jsonb,${data.note})`;
-      return send({ok:true,orderId:id,status:'pending_quote',paymentRequired:false},201);
+      const referralCode=await activeReferralCode(data.referralCandidate);
+      await DB`INSERT INTO lumenda_orders(id,status,market,customer,items,note,referral_code)
+        VALUES (${id},${'pending_quote'},${data.market},${customer}::jsonb,${items}::jsonb,${data.note},${referralCode})`;
+      return send({ok:true,orderId:id,status:'pending_quote',paymentRequired:false,referralTracked:!!referralCode},201);
     } catch(e) {
       if(e.status) return send({ok:false,error:e.message},e.status);
       console.error('Order save failed',e?.message);return send({ok:false,error:'訂單暫時未能儲存，請稍後再試'},503);
@@ -226,7 +295,7 @@ async function handle(req) {
   }
   if(path==='/api/orders' && req.method==='GET') {
     if(!validAdmin(req)||!validAdminOrigin(req)) return send({ok:false,error:'Unauthorized'},401);
-    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders});}
+    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders});}
     catch(e){console.error('Order fetch failed',e?.message);return send({ok:false,error:'Database unavailable'},503);}
   }
   if(path.startsWith('/api/orders/') && req.method==='PATCH') {
@@ -267,6 +336,7 @@ async function checkDatabaseAtStartup(){
   try {
     await ensureTable();
     await ensureMediaTable();
+    await ensureAgentsTable();
     const ping=await DB`SELECT 1 AS connected`;
     if(ping[0]?.connected!==1)throw new Error('Invalid database response');
     console.log('LUMENDA_DB_CHECK: CONNECTED; orders and media tables ready');

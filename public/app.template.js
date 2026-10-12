@@ -6,6 +6,16 @@ const I18N = window.LUMENDA_I18N;
 if (!I18N) throw new Error('The translation dictionary did not load.');
 const $ = id => document.getElementById(id);
 const selected = {};
+// Invite attribution is scoped to the visitor's browser tab; no admin credentials are used.
+const referralCode=(()=>{
+  const raw=new URLSearchParams(window.location.search).get('ref');
+  let code=String(raw||'').trim().toUpperCase();
+  try{
+    if(/^(AG|RF)[A-F0-9]{14}$/.test(code))sessionStorage.setItem('lumenda_referral',code);
+    else if(!raw)code=sessionStorage.getItem('lumenda_referral')||'';
+  }catch{}
+  return /^(AG|RF)[A-F0-9]{14}$/.test(code)?code:'';
+})();
 const marketSelect = $('market');
 const languageSelect = $('language');
 let language = I18N.DEFAULT_LANG.HK;
@@ -18,6 +28,8 @@ languageSelect.value = language;
 function updateTranslations() {
   document.documentElement.lang = language;
   document.title = 'LUMENDA SELECT | ' + tr('productHeading');
+  const notice=$('referralNotice');
+  if(notice){notice.hidden=!referralCode;if(referralCode)notice.textContent=tr('referralTracked')+' '+referralCode;}
   for(const el of document.querySelectorAll('[data-i18n]')) el.textContent = tr(el.dataset.i18n);
   for(const el of document.querySelectorAll('[data-i18n-placeholder]')) el.placeholder = tr(el.dataset.i18nPlaceholder);
 }
@@ -137,7 +149,7 @@ $('orderForm').addEventListener('submit',async event=>{
   const shipping={};for(const field of m.addressFields) shipping[field.key]=textVal('shipping_'+field.key);
   shipping.postcode=textVal('shipping_postcode');
   const customer={name:textVal('recipient'),phone:textVal('phone'),email:textVal('email'),contactMethod:textVal('contactMethod'),contactId:textVal('contactId'),company:textVal('company'),shipping};
-  const data={market,items,customer,paymentMethod:textVal('paymentMethod'),otherPayment:textVal('otherPayment'),deliverySpeed:textVal('deliverySpeed'),deliveryNote:textVal('deliveryNote'),note:textVal('orderNote'),consent:$('privacy').checked,website:textVal('website')};
+  const data={market,items,customer,paymentMethod:textVal('paymentMethod'),otherPayment:textVal('otherPayment'),deliverySpeed:textVal('deliverySpeed'),deliveryNote:textVal('deliveryNote'),note:textVal('orderNote'),referralCode,consent:$('privacy').checked,website:textVal('website')};
   const button=$('submitOrder');button.disabled=true;button.textContent=tr('submitting');
   try{
     const res=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
