@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "test:smoke": "node --test tests/*.test.mjs",
-    "build": "node scripts/build_frontend.mjs && npm run test:smoke"
+    "build": "node scripts/build_frontend.mjs && npm run check:frontend && npm run test:smoke",
+    "check:frontend": "node --check public/app.js && node --check public/i18n.js && node --check public/admin.js && node --check public/bot.js && node --check public/order.js"
   },
   "engines": {
     "node": ">=20"
