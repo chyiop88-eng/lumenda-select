@@ -18,7 +18,7 @@ const STATIC_FILES={
 const MARKETS = JSON.parse(readFileSync(join(ROOT, 'config', 'markets.json'), 'utf8'));
 const PRODUCTS = JSON.parse(readFileSync(join(ROOT, 'config', 'products.json'), 'utf8'));
 const STRIPE_MODE=process.env.STRIPE_MODE==='live'?'live':'test';
-function stripeReady(){
+function stripeProviderConfigured(){
   const key=String(process.env.STRIPE_SECRET_KEY||'');
   const base=String(process.env.PUBLIC_SITE_URL||'');
   let validBase=false;
@@ -26,11 +26,13 @@ function stripeReady(){
     const u=new URL(base);
     validBase=(u.protocol==='https:'||(process.env.NODE_ENV==='test'&&u.protocol==='http:'&&['localhost','127.0.0.1'].includes(u.hostname)))&&u.pathname==='/'&&!u.search&&!u.hash;
   } catch {}
-  return !!DB&&process.env.STRIPE_CHECKOUT_ENABLED==='true' &&
+  return !!DB &&
     key.startsWith(STRIPE_MODE==='live'?'sk_live_':'sk_test_') &&
     String(process.env.STRIPE_WEBHOOK_SECRET||'').startsWith('whsec_') &&
     validBase &&(STRIPE_MODE!=='live'||process.env.STRIPE_LIVE_APPROVED==='true');
 }
+function stripeReady(){return stripeProviderConfigured()&&process.env.STRIPE_CHECKOUT_ENABLED==='true';}
+function stripeWebhookReady(){return stripeProviderConfigured();}
 function stripeApiBase(){
   if(process.env.NODE_ENV==='test'&&process.env.STRIPE_MOCK_BASE_URL){
     const url=new URL(process.env.STRIPE_MOCK_BASE_URL);
@@ -538,7 +540,7 @@ async function handle(req) {
         method:'POST',headers:{
           Authorization:'Bearer '+process.env.STRIPE_SECRET_KEY,
           'Content-Type':'application/x-www-form-urlencoded',
-          'Idempotency-Key':'lumenda-'+selection.id+'-'+selection.fingerprint.slice(0,20)+'-'+new Date().toISOString().slice(0,10)
+          'Idempotency-Key':'lumenda-'+selection.id+'-'+selection.fingerprint.slice(0,20)+'-'+selection.lock
         },body:selection.params,signal:AbortSignal.timeout(15000)
       });
       if(!response.ok)throw Error('Stripe gateway returned HTTP '+response.status);
@@ -574,7 +576,7 @@ async function handle(req) {
 
   // Stripe signs the exact raw bytes. A return URL or screenshot NEVER confirms payment.
   if(path==='/api/payments/stripe/webhook'&&req.method==='POST'){
-    if(!stripeReady())return send({ok:false,error:'Webhook unavailable'},503);
+    if(!stripeWebhookReady())return send({ok:false,error:'Webhook unavailable'},503);
     try{
       const raw=await req.text();
       const event=verifyStripeEvent(raw,req.headers.get('stripe-signature'),
