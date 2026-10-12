@@ -179,6 +179,144 @@ $('contactSearch').addEventListener('keydown',event=>{if(event.key==='Enter'){ev
 function makeQuoteEditor(o){
   const wrap=contactElement('section',undefined,'order-quote-panel');
   wrap.append(contactElement('h4','港幣報價及第三方付款連結'));
+  const cart=o.cart_snapshot;
+  if(cart){
+    const panel=contactElement('div',undefined,'order-cart-breakdown');
+    panel.append(contactElement('strong','🛒 下單時商品計算快照（由伺服器計價）'));
+    for(const line of cart.lines||[])panel.append(contactElement('p',line.name+' × '+line.qty+' · '+(line.lineSubtotalHkd===null?'待報價':'HK
+  const fields=contactElement('div',undefined,'field-grid');
+  const controls={};
+  const specs=[
+    ['subtotalHkd','商品小計 HKD（滿 4,000 免運）',o.quote?.subtotalHkd??'','number'],
+    ['shippingHkd','運費 HKD（達門檻自動歸零）',o.quote?.shippingHkd??'0','number'],
+    ['taxHkd','收件地適用稅費 HKD（自行核實）',o.quote?.taxHkd??'0','number'],
+    ['paymentLink','Stripe／PayPal 官方付款連結（選填）',o.quote?.paymentLink??'','url'],
+    ['note','報價備註（選填）',o.quote?.note??'','text']
+  ];
+  for(const [key,title,value,type] of specs){
+    const label=contactElement('label',title,'field');
+    const ctrl=document.createElement('input');ctrl.type=type;ctrl.value=String(value);ctrl.autocomplete='off';
+    if(type==='number'){ctrl.min='0';ctrl.max='10000000';ctrl.step='.01';ctrl.inputMode='decimal';}
+    if(key==='paymentLink'){ctrl.placeholder='https://buy.stripe.com/... 或 https://www.paypal.com/...';ctrl.maxLength=1200;}
+    if(key==='note')ctrl.maxLength=280;
+    label.append(ctrl);fields.append(label);controls[key]=ctrl;
+  }
+  const summary=contactElement('p','','quote-summary');
+  function updateQuote(){
+    const subtotal=Number(controls.subtotalHkd.value||'0'),tax=Number(controls.taxHkd.value||'0');
+    const free=Number.isFinite(subtotal)&&subtotal>=4000;
+    controls.shippingHkd.disabled=free;if(free)controls.shippingHkd.value='0';
+    const shipping=Number(controls.shippingHkd.value||'0');
+    summary.textContent=(free?'✓ 商品小計滿 HK$4,000，免運費。':'未滿 HK$4,000，按目的地另外報運費。')+' 最終金額（未核實）：HK$'+(subtotal+shipping+tax).toFixed(2);
+  }
+  for(const field of ['subtotalHkd','shippingHkd','taxHkd'])controls[field].addEventListener('input',updateQuote);
+  updateQuote();
+  const actions=contactElement('div',undefined,'button-row');
+  const save=contactElement('button','保存正式報價／付款連結','btn');
+  save.type='button';save.onclick=async()=>{
+    save.disabled=true;
+    try{
+      const fields=Object.fromEntries(Object.entries(controls).map(([key,input])=>[key,input.value]));
+      const response=await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/quote',{method:'POST',body:JSON.stringify(fields)});
+      if(!response.ok)throw new Error('儲存失敗');
+      show($('status'),'✅ '+o.id+' 已儲存港幣報價。'+(fields.paymentLink?'私人進度頁已可提供付款連結。':'暫未設定付款連結。'),true);
+      await loadOrders();
+    }catch(e){show($('status'),e.message,false);}
+    finally{save.disabled=false;}
+  };
+  actions.append(save);
+  if(o.payment_status==='link_ready'){
+    const verify=contactElement('div',undefined,'quote-verification');
+    const checkbox=document.createElement('input');checkbox.type='checkbox';
+    const label=document.createElement('label');label.append(checkbox,document.createTextNode(' 我已喺 Stripe／PayPal 商戶後台核實實際入帳'));
+    const ref=document.createElement('input');ref.type='text';ref.maxLength=100;ref.placeholder='真實交易參考編號（至少 6 字元）';
+    const button=contactElement('button','登記已核實付款','btn outline');
+    button.type='button';button.onclick=async()=>{
+      if(!checkbox.checked||ref.value.trim().length<6){show($('status'),'請先核實入帳並填交易參考編號',false);return;}
+      if(!window.confirm('確認你已到支付服務商後台核實 '+o.id+' 嘅實際入帳？'))return;
+      button.disabled=true;
+      try{await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/payment',{method:'POST',
+        body:JSON.stringify({confirmed:true,transactionReference:ref.value.trim()})});
+        show($('status'),'已記錄商戶核實付款：'+o.id,true);await loadOrders();
+      }catch(e){show($('status'),e.message,false);}finally{button.disabled=false;}
+    };
+    verify.append(label,ref,button);actions.append(verify);
+  }else if(o.payment_status==='owner_verified'){
+    actions.append(contactElement('p','✅ 已登記店主核實付款（交易參考：'+(o.payment_reference||'—')+'）','hint'));
+  }else{
+    actions.append(contactElement('span','未啟用正式線上付款連結。','hint'));
+  }
+  wrap.append(fields,summary,actions);return wrap;
+}
++Number(line.lineSubtotalHkd).toFixed(2))));
+    panel.append(contactElement('p','已標價商品小計：HK
+  const fields=contactElement('div',undefined,'field-grid');
+  const controls={};
+  const specs=[
+    ['subtotalHkd','商品小計 HKD（滿 4,000 免運）',o.quote?.subtotalHkd??'','number'],
+    ['shippingHkd','運費 HKD（達門檻自動歸零）',o.quote?.shippingHkd??'0','number'],
+    ['taxHkd','收件地適用稅費 HKD（自行核實）',o.quote?.taxHkd??'0','number'],
+    ['paymentLink','Stripe／PayPal 官方付款連結（選填）',o.quote?.paymentLink??'','url'],
+    ['note','報價備註（選填）',o.quote?.note??'','text']
+  ];
+  for(const [key,title,value,type] of specs){
+    const label=contactElement('label',title,'field');
+    const ctrl=document.createElement('input');ctrl.type=type;ctrl.value=String(value);ctrl.autocomplete='off';
+    if(type==='number'){ctrl.min='0';ctrl.max='10000000';ctrl.step='.01';ctrl.inputMode='decimal';}
+    if(key==='paymentLink'){ctrl.placeholder='https://buy.stripe.com/... 或 https://www.paypal.com/...';ctrl.maxLength=1200;}
+    if(key==='note')ctrl.maxLength=280;
+    label.append(ctrl);fields.append(label);controls[key]=ctrl;
+  }
+  const summary=contactElement('p','','quote-summary');
+  function updateQuote(){
+    const subtotal=Number(controls.subtotalHkd.value||'0'),tax=Number(controls.taxHkd.value||'0');
+    const free=Number.isFinite(subtotal)&&subtotal>=4000;
+    controls.shippingHkd.disabled=free;if(free)controls.shippingHkd.value='0';
+    const shipping=Number(controls.shippingHkd.value||'0');
+    summary.textContent=(free?'✓ 商品小計滿 HK$4,000，免運費。':'未滿 HK$4,000，按目的地另外報運費。')+' 最終金額（未核實）：HK$'+(subtotal+shipping+tax).toFixed(2);
+  }
+  for(const field of ['subtotalHkd','shippingHkd','taxHkd'])controls[field].addEventListener('input',updateQuote);
+  updateQuote();
+  const actions=contactElement('div',undefined,'button-row');
+  const save=contactElement('button','保存正式報價／付款連結','btn');
+  save.type='button';save.onclick=async()=>{
+    save.disabled=true;
+    try{
+      const fields=Object.fromEntries(Object.entries(controls).map(([key,input])=>[key,input.value]));
+      const response=await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/quote',{method:'POST',body:JSON.stringify(fields)});
+      if(!response.ok)throw new Error('儲存失敗');
+      show($('status'),'✅ '+o.id+' 已儲存港幣報價。'+(fields.paymentLink?'私人進度頁已可提供付款連結。':'暫未設定付款連結。'),true);
+      await loadOrders();
+    }catch(e){show($('status'),e.message,false);}
+    finally{save.disabled=false;}
+  };
+  actions.append(save);
+  if(o.payment_status==='link_ready'){
+    const verify=contactElement('div',undefined,'quote-verification');
+    const checkbox=document.createElement('input');checkbox.type='checkbox';
+    const label=document.createElement('label');label.append(checkbox,document.createTextNode(' 我已喺 Stripe／PayPal 商戶後台核實實際入帳'));
+    const ref=document.createElement('input');ref.type='text';ref.maxLength=100;ref.placeholder='真實交易參考編號（至少 6 字元）';
+    const button=contactElement('button','登記已核實付款','btn outline');
+    button.type='button';button.onclick=async()=>{
+      if(!checkbox.checked||ref.value.trim().length<6){show($('status'),'請先核實入帳並填交易參考編號',false);return;}
+      if(!window.confirm('確認你已到支付服務商後台核實 '+o.id+' 嘅實際入帳？'))return;
+      button.disabled=true;
+      try{await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/payment',{method:'POST',
+        body:JSON.stringify({confirmed:true,transactionReference:ref.value.trim()})});
+        show($('status'),'已記錄商戶核實付款：'+o.id,true);await loadOrders();
+      }catch(e){show($('status'),e.message,false);}finally{button.disabled=false;}
+    };
+    verify.append(label,ref,button);actions.append(verify);
+  }else if(o.payment_status==='owner_verified'){
+    actions.append(contactElement('p','✅ 已登記店主核實付款（交易參考：'+(o.payment_reference||'—')+'）','hint'));
+  }else{
+    actions.append(contactElement('span','未啟用正式線上付款連結。','hint'));
+  }
+  wrap.append(fields,summary,actions);return wrap;
+}
++Number(cart.pricedSubtotalHkd).toFixed(2)+(cart.quoteRequired?'（另有待報價商品）':'')));
+    wrap.append(panel);
+  }
   const fields=contactElement('div',undefined,'field-grid');
   const controls={};
   const specs=[
