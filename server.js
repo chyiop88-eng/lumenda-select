@@ -371,7 +371,7 @@ async function handle(req) {
           ) AS entries WHERE phone IS NOT NULL
           GROUP BY phone
         ) SELECT phone,name,market,order_count,last_seen_at FROM grouped
-        WHERE phone ILIKE ${term} OR name ILIKE ${term}
+        WHERE strpos(lower(phone),lower(${q}))>0 OR strpos(lower(name),lower(${q}))>0
         ORDER BY last_seen_at DESC LIMIT 51 OFFSET ${page*50}`;
       return send({ok:true,contacts:rows.slice(0,50),hasMore:rows.length>50,page,
         scope:'submitted_orders_only',marketingConsent:false});
