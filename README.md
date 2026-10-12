@@ -1,4 +1,4 @@
-# LUMENDA SELECT · v13 (two SK-II heroes + customer CRM and safe checkout handoff)
+> **v14 feature-branch notice (2026-10-12):** A server-verified cart, locked itemized quotes and Stripe-hosted card checkout with signed webhooks have been implemented in PR #1, NOT merged/deployed. The existing live site is still v13 enquiry-only until this branch is approved and merchant credentials configured. See [CHECKOUT_DEPLOYMENT.md](CHECKOUT_DEPLOYMENT.md) for tested safeguards and the required merchant activation steps. PayPal remains human-verified external payment links.\n\n# LUMENDA SELECT · v13 (two SK-II heroes + customer CRM and safe checkout handoff)
 
 This live Node.js/PostgreSQL website is deployed at https://lumenda-select-preview.onrender.com. Source is managed on GitHub and automatically built on Render. The app is an enquiry storefront, not an online card checkout.
 
