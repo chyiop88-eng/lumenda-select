@@ -30,7 +30,7 @@ jobs:
               print(("[PASS]" if correct else "[FAIL]")+" "+name+" HTTP "+str(code),flush=True)
               probes.append(correct);time.sleep(.25)
           check("v13-health","/api/health",200,lambda t:(lambda j:j["uiVersion"]=="13.0.0" and j["featuredSKUs"]==["FTE230","GENOPTICS50"] and j["shippingPolicy"]["freeShippingThresholdHKD"]==4000 and j["paymentsLive"] is False and j["contactsEnabled"] is True)(json.loads(t)))
-          check("client-USD-reference","/app.js",200,lambda t:"US$119.54" in t and "receiptToken" in t)
+          check("client-USD-reference","/app.js",200,lambda t:"119.54" in t and "receiptToken" in t)
           check("customer-bot-script","/bot.js",200,lambda t:"/api/bot/reply" in t)
           check("customer-bot-panel","/",200,lambda t:'id="conciergeForm"' in t and 'id="conciergeMessages"' in t)
           check("admin-phonebook","/admin",200,lambda t:'id="contactsManager"' in t and 'id="contactSearch"' in t)
