@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test:smoke": "node --test tests/*.test.mjs",
-    "build": "node scripts/build_frontend.mjs"
+    "build": "node scripts/build_frontend.mjs && npm run test:smoke"
   },
   "engines": {
     "node": ">=20"
