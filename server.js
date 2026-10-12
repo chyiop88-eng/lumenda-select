@@ -338,7 +338,7 @@ function ruleBotReply(message,lang){
   if(/price|how much|價錢|价格|售價|giá|ราคา|多少|幾錢|多少钱/i.test(q))
     return en?'Facial Treatment Essence 230ml is HK$899 per bottle (about US$114.55 at the 2026-10-12 reference rate), before shipping and applicable taxes. GenOptics Aura Essence still requires a seller quote.':'神仙水 230ml 每支 HK$899（2026-10-12 參考匯率約 US$114.55），未計運費同適用稅費。小燈泡仍然待報價。';
   if(/付款|支付|pay|card|visa|master|paypal|fps|stripe|thanh toán|ชำระ/i.test(q))
-    return en?'Enquiries never charge you. After a seller-confirmed quote, you may receive a Stripe or PayPal payment link in your private order page. Payment must be independently verified.':'提交查詢唔會扣款；店主確認報價後，可能喺私人訂單頁提供 Stripe／PayPal 收款連結。付款必須喺收款平台核實。';
+    return en?'Submitting an order enquiry never charges you. After the seller confirms a HKD quote, supported PayPal checkout is available only when the merchant enables it; FPS and USDT need owner verification.':'提交訂單查詢唔會扣款。店主確認港幣報價後，如商戶已啟用 PayPal，私人訂單頁可使用 PayPal 結帳；FPS 或 USDT 必須由店主核實真實入帳。';
   if(/order|訂單|订单|落單|đơn hàng|สั่งซื้อ|確認|confirm|进度/i.test(q))
     return en?'Choose one of the two SK-II products and submit the enquiry form. You will get a private tracking link and instant receipt acknowledgement; final acceptance requires seller confirmation.':'你可揀神仙水或小燈泡提交查詢。提交成功會收到私人訂單進度連結同「已收到」確認；店主先會確認實際訂單。';
   if(/agent|代理|介紹|介绍|referral|affiliate/i.test(q))
