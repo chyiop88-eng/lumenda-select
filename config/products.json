@@ -5,13 +5,13 @@
     "tag": "Essence / 神仙水",
     "visual": "ESSENCE",
     "price": {
-      "baseCurrency": "CNY",
-      "baseAmount": 800,
+      "baseCurrency": "HKD",
+      "baseAmount": 899,
       "displayCurrency": "USD",
-      "usdApprox": 119.54,
-      "fxRateCnyToUsd": 0.149429,
+      "usdApprox": 114.55,
+      "fxRateHkdToUsd": 0.127422,
       "fxRateDate": "2026-10-12",
-      "amountStatus": "reference_excluding_shipping_and_tax"
+      "amountStatus": "seller_price_usd_reference_excluding_shipping_and_tax"
     }
   },
   {
