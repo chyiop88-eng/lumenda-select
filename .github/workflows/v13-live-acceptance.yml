@@ -1,0 +1,44 @@
+name: v13 live read-only owner acceptance
+on:
+  push:
+    branches:
+      - live-owner-v13-acceptance-2026-10-12
+permissions:
+  contents: read
+jobs:
+  read-only-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify deployed storefront, bot, CRM protection and quote status
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json,time,sys
+          base="https://lumenda-select-preview.onrender.com"
+          probes=[]
+          def check(name,path,expected,validate=None):
+              req=urllib.request.Request(base+path,headers={"User-Agent":"lumenda-v13-authorized-live-acceptance/1.0"})
+              try:
+                  with urllib.request.urlopen(req,timeout=35) as r:
+                      code=r.status;txt=r.read(100000).decode("utf8","replace")
+              except urllib.error.HTTPError as e:
+                  code=e.code;txt=e.read(4000).decode("utf8","replace")
+              except Exception as e:
+                  code="NETWORK_ERROR";txt=""
+              correct=code==expected and (validate(txt) if validate else True)
+              print(("[PASS]" if correct else "[FAIL]")+" "+name+" HTTP "+str(code),flush=True)
+              probes.append(correct);time.sleep(.25)
+          check("v13-health","/api/health",200,lambda t:(lambda j:j["uiVersion"]=="13.0.0" and j["featuredSKUs"]==["FTE230","GENOPTICS50"] and j["shippingPolicy"]["freeShippingThresholdHKD"]==4000 and j["paymentsLive"] is False and j["contactsEnabled"] is True)(json.loads(t)))
+          check("client-USD-reference","/app.js",200,lambda t:"US$119.54" in t and "receiptToken" in t)
+          check("customer-bot-script","/bot.js",200,lambda t:"/api/bot/reply" in t)
+          check("customer-bot-panel","/",200,lambda t:'id="conciergeForm"' in t and 'id="conciergeMessages"' in t)
+          check("admin-phonebook","/admin",200,lambda t:'id="contactsManager"' in t and 'id="contactSearch"' in t)
+          check("owner-CRM-protected","/api/admin/contacts",401)
+          check("owner-orders-protected","/api/orders",401)
+          check("private-receipt-page","/order",200,lambda t:'id="receiptResult"' in t)
+          check("private-receipt-client","/order.js",200,lambda t:"/api/order/lookup" in t)
+          check("media-showcase","/api/showcase",200,lambda t:json.loads(t)["ok"] is True)
+          print("V13_LIVE_ACCEPTANCE "+str(sum(probes))+"/"+str(len(probes))+"; GET only, no customer data read",flush=True)
+          if not all(probes):sys.exit(1)
+          PY
