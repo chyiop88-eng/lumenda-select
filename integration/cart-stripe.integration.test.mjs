@@ -71,29 +71,29 @@ before(async()=>{
 after(async()=>{server?.kill('SIGTERM');if(mock)await new Promise(r=>mock.close(r));});
 test('verified cart -> persisted order -> strict quote -> gateway -> signed webhook -> paid',async()=>{
  const r=await order([{sku:'FTE230',qty:1}]);
- assert.equal(r.cart.pricedSubtotalHkd,899);
- assert.equal(r.cart.lines[0].lineSubtotalHkd,899);
+ assert.equal(r.cart.pricedSubtotalCny,750);
+ assert.equal(r.cart.lines[0].lineSubtotalCny,750);
  const id=r.orderId,quoteUrl='/api/admin/orders/'+id+'/quote';
  const list=await api('/api/orders',{headers:{cookie}});
  assert.equal(list.status,200);
  const row=list.body.orders.find(x=>x.id===id);
- assert.equal(row.cart_snapshot.pricedSubtotalHkd,899);
- const bad=await api(quoteUrl,{method:'POST',...req({subtotalHkd:'4000',shippingHkd:'0',taxHkd:'0'},{cookie})});
+ assert.equal(row.cart_snapshot.pricedSubtotalCny,750);
+ const bad=await api(quoteUrl,{method:'POST',...req({fxRateCnyToHkd:'1.2',subtotalHkd:'4000',shippingHkd:'0',taxHkd:'0'},{cookie})});
  assert.equal(bad.status,400,JSON.stringify(bad.body));
  const good=await api(quoteUrl,{method:'POST',...req({
-   subtotalHkd:'899',shippingHkd:'35',taxHkd:'20',paymentLink:'',unitPricesHkd:{}
+   fxRateCnyToHkd:'1.2',subtotalHkd:'900',shippingHkd:'35',taxHkd:'20',paymentLink:'',unitPricesHkd:{}
  },{cookie})});
  assert.equal(good.status,200,JSON.stringify(good.body));
- assert.equal(good.body.quote.totalHkd,954);
- assert.equal(good.body.quote.subtotalHkd,899);
+ assert.equal(good.body.quote.totalHkd,955);
+ assert.equal(good.body.quote.subtotalHkd,900);
  const lookup=await api('/api/order/lookup',{method:'POST',...req({token:r.receiptToken})});
- assert.equal(lookup.body.order.quote.totalHkd,954);
+ assert.equal(lookup.body.order.quote.totalHkd,955);
  assert.equal(lookup.body.order.stripeCheckoutAvailable,true);
  assert.ok(!JSON.stringify(lookup.body).includes('91234567'),'Never disclose customer PII in receipt');
  const checkout=await api('/api/order/checkout',{method:'POST',...req({token:r.receiptToken})});
  assert.equal(checkout.status,200,JSON.stringify(checkout.body));
  assert.match(checkout.body.url,/^https:\/\/checkout\.stripe\.com\//);
- assert.equal(created.at(-1).session.amount_total,95400);
+ assert.equal(created.at(-1).session.amount_total,95500);
  assert.equal(created.at(-1).p.get('line_items[0][price_data][currency]'),'hkd');
  assert.equal(created.at(-1).p.get('client_reference_id'),id);
  const repeat=await api('/api/order/checkout',{method:'POST',...req({token:r.receiptToken})});
@@ -115,29 +115,29 @@ test('verified cart -> persisted order -> strict quote -> gateway -> signed webh
  assert.equal(afterPaid.body.order.paidVerified,true);
  assert.equal(afterPaid.body.order.paymentStatus,'stripe_paid');
  assert.equal(afterPaid.body.order.stripeCheckoutAvailable,false);
- const change=await api(quoteUrl,{method:'POST',...req({subtotalHkd:'899',shippingHkd:'0',taxHkd:'0'},{cookie})});
+ const change=await api(quoteUrl,{method:'POST',...req({fxRateCnyToHkd:'1.2',subtotalHkd:'900',shippingHkd:'0',taxHkd:'0'},{cookie})});
  assert.equal(change.status,409);
  const noDouble=await api('/api/order/checkout',{method:'POST',...req({token:r.receiptToken})});
  assert.equal(noDouble.status,409);
  const adminList=await api('/api/orders',{headers:{cookie}});
  const persisted=adminList.body.orders.find(x=>x.id===id);
  assert.equal(persisted.payment_status,'stripe_paid');
- assert.equal(persisted.quote.totalHkd,954);
- assert.equal(persisted.cart_snapshot.pricedSubtotalHkd,899);
+ assert.equal(persisted.quote.totalHkd,955);
+ assert.equal(persisted.cart_snapshot.pricedSubtotalCny,750);
 });
 test('HK$4000 free shipping, and unknown SKU requires unit quote',async()=>{
  const five=await order([{sku:'FTE230',qty:5}]);
  const full=await api('/api/admin/orders/'+five.orderId+'/quote',{method:'POST',
-  ...req({subtotalHkd:'4495',shippingHkd:'90',taxHkd:'5'}, {cookie})});
+  ...req({fxRateCnyToHkd:'1.2',subtotalHkd:'4500',shippingHkd:'90',taxHkd:'5'}, {cookie})});
  assert.equal(full.status,200);assert.equal(full.body.quote.shippingHkd,0);
- assert.equal(full.body.quote.totalHkd,4500);
+ assert.equal(full.body.quote.totalHkd,4505);
  const unknown=await order([{sku:'FTE230',qty:1},{sku:'GENOPTICS50',qty:2}]);
  const invalid=await api('/api/admin/orders/'+unknown.orderId+'/quote',{method:'POST',
-   ...req({subtotalHkd:'899',shippingHkd:'0',taxHkd:'0'}, {cookie})});
+   ...req({fxRateCnyToHkd:'1.2',subtotalHkd:'900',shippingHkd:'0',taxHkd:'0'}, {cookie})});
  assert.equal(invalid.status,400);
  const valid=await api('/api/admin/orders/'+unknown.orderId+'/quote',{method:'POST',
-   ...req({subtotalHkd:'3899',unitPricesHkd:{GENOPTICS50:'1500'},shippingHkd:'50',taxHkd:'10'}, {cookie})});
+   ...req({fxRateCnyToHkd:'1.2',subtotalHkd:'3900',unitPricesHkd:{GENOPTICS50:'1500'},shippingHkd:'50',taxHkd:'10'}, {cookie})});
  assert.equal(valid.status,200,JSON.stringify(valid.body));
- assert.equal(valid.body.quote.totalHkd,3959);
+ assert.equal(valid.body.quote.totalHkd,3960);
  assert.equal(valid.body.quote.lines[1].unitPriceHkd,1500);
 });
