@@ -241,7 +241,7 @@ function makeQuoteEditor(o){
   function updateQuote(){
     let subtotalCents=0,pending=false;
     const rawRate=fxInput?.value.trim()||'';
-    const rateMicro=rawRate && /^(?:[0-4](?:\\.\\d{1,6})?|5(?:\\.0{1,6})?)$/.test(rawRate)?
+    const rateMicro=rawRate && /^(?:[0-4](?:\.\d{1,6})?|5(?:\.0{1,6})?)$/.test(rawRate)?
       Math.round(Number(rawRate)*1000000):0;
     if(hasCny&&(rateMicro<100000||rateMicro>5000000))pending=true;
     for(const line of lines){
@@ -251,7 +251,7 @@ function makeQuoteEditor(o){
         unitCents=Math.round(Math.round(Number(line.unitPriceCny)*100)*rateMicro/1000000);
       }else if(line.priceStatus==='requires_seller_quote'){
         const raw=prices[line.sku]?.value;
-        if(!raw||!/^(?:\\d{1,8})(?:\\.\\d{1,2})?$/.test(raw)){pending=true;continue;}
+        if(!raw||!/^(?:\d{1,8})(?:\.\d{1,2})?$/.test(raw)){pending=true;continue;}
         unitCents=Math.round(Number(raw)*100);
       }else unitCents=Math.round(Number(line.unitPriceHkd)*100);
       if(!(unitCents>0)||!Number.isSafeInteger(unitCents)){pending=true;continue;}
