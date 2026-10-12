@@ -121,172 +121,19 @@ function renderCart(){
   }
   if(count===0){const p=document.createElement('p');p.className='muted';p.textContent=tr('cartEmpty');lines.append(p);}
   $('cartCount').textContent=String(count);
-  const subtotal=PRODUCTS.reduce((acc,p)=>{const n=Number(p.price?.baseAmount);return acc+(p.price?.baseCurrency==='HKD'&&n>0?n*(selected[p.sku]||0):0);},0);
-  const pending=PRODUCTS.some(p=>(selected[p.sku]||0)>0&&!(p.price?.baseCurrency==='HKD'&&Number(p.price?.baseAmount)>0));
-  const fmt=n=>'HK
-function textVal(name){const el=document.querySelector('[name="'+name+'"]');return el?.value?.trim()||'';}
-function renderResult(){
-  const target=$('result');
-  if(!lastResult){target.textContent='';target.className='status';return;}
-  const msg=lastResult.type==='success'?tr('orderSuccess',{id:lastResult.orderId}):
-    lastResult.type==='empty'?tr('orderEmpty'):
-    lastResult.type==='error'?tr('orderFailed',{message:lastResult.message}):tr('serviceFailed');
-  target.textContent=msg;
-  if(lastResult.type==='success'&&lastResult.receiptToken){
-    const link=document.createElement('a');link.href='/order#'+encodeURIComponent(lastResult.receiptToken);
-    link.target='_blank';link.rel='noopener noreferrer';link.textContent=tr('privateTracking');
-    target.append(document.createElement('br'),link);
-    const note=document.createElement('small');note.textContent=tr('receiptNote');
-    target.append(document.createElement('br'),note);
-  }
-  target.className='status show '+(lastResult.type==='success'?'ok':'err');
-}
-function setResult(data){lastResult=data;renderResult();}
-function setLanguage(lang,preserveAddress=true){
-  language=I18N.TEXT[lang]?lang:'zh-Hant';
-  languageSelect.value=language;
-  updateTranslations();
-  updateCountry(preserveAddress);
-  renderProducts();renderCart();renderResult();
-}
-$('orderForm').addEventListener('submit',async event=>{
-  event.preventDefault();const form=event.currentTarget;
-  if(!form.reportValidity())return;
-  const market=marketSelect.value,m=MARKETS[market];
-  const items=PRODUCTS.filter(p=>selected[p.sku]>0).map(p=>({sku:p.sku,qty:selected[p.sku]}));
-  if(!items.length){setResult({type:'empty'});return;}
-  const shipping={};for(const field of m.addressFields) shipping[field.key]=textVal('shipping_'+field.key);
-  shipping.postcode=textVal('shipping_postcode');
-  const customer={name:textVal('recipient'),phone:textVal('phone'),email:textVal('email'),contactMethod:textVal('contactMethod'),contactId:textVal('contactId'),company:textVal('company'),shipping};
-  const data={market,items,customer,paymentMethod:textVal('paymentMethod'),otherPayment:textVal('otherPayment'),deliverySpeed:textVal('deliverySpeed'),deliveryNote:textVal('deliveryNote'),note:textVal('orderNote'),referralCode,consent:$('privacy').checked,website:textVal('website')};
-  const button=$('submitOrder');button.disabled=true;button.textContent=tr('submitting');
-  try{
-    const res=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-    const reply=await res.json();if(!res.ok) throw new Error(reply.error||tr('serviceFailed'));
-    setResult({type:'success',orderId:reply.orderId,receiptToken:reply.receiptToken});
-    for(const sku of Object.keys(selected))delete selected[sku];renderCart();
-    // Keep the user's selected destination and language after success.
-    form.reset();updateCountry(false);updateTranslations();
-  }catch(e){setResult({type:'error',message:e.message});}
-  finally{button.disabled=false;button.textContent=tr('submit');}
-});
-marketSelect.addEventListener('change',()=>{setLanguage(I18N.DEFAULT_LANG[marketSelect.value]||'en',false);});
-languageSelect.addEventListener('change',()=>{setLanguage(languageSelect.value,true);});
-setLanguage(I18N.DEFAULT_LANG[marketSelect.value],false);
-
-
-// Rose Aura: lightweight cinematic light movement; visual-only enhancements.
-(function initRoseAuraEffects(){
-  const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  if(reduced)return;
-  const reveals=[...document.querySelectorAll('.reveal')];
-  if('IntersectionObserver' in window){
-    const watcher=new IntersectionObserver(entries=>{
-      for(const entry of entries){if(entry.isIntersecting){entry.target.classList.add('is-visible');watcher.unobserve(entry.target);}}
-    },{threshold:0.08,rootMargin:'0px 0px -16px 0px'});
-    document.documentElement.classList.add('motion-ready');
-    reveals.forEach(node=>watcher.observe(node));
-  }else{reveals.forEach(node=>node.classList.add('is-visible'));}
-  const hero=document.querySelector('.hero-premiere');
-  if(hero&&window.matchMedia?.('(hover:hover) and (pointer:fine)').matches){
-    let pending=false,point=null;
-    hero.addEventListener('pointermove',event=>{
-      const rect=hero.getBoundingClientRect();
-      point=[Math.round((event.clientX-rect.left)/rect.width*100)+'%',Math.round((event.clientY-rect.top)/rect.height*100)+'%'];
-      if(pending)return;
-      pending=true;
-      requestAnimationFrame(()=>{if(point){hero.style.setProperty('--px',point[0]);hero.style.setProperty('--py',point[1]);}pending=false;});
-    },{passive:true});
-  }
-})();
-
-
-// Cinematic video / animated imagery: no blank spaces until owner enables a slot.
-(async function initializeCinematicMedia(){
-  const stageConfig=[
-    {slot:'brand',wrapper:'brandCinema',host:'brandMediaHost'},
-    {slot:'fte',wrapper:'fteMediaSlot',host:'fteMediaHost'},
-    {slot:'aura',wrapper:'auraMediaSlot',host:'auraMediaHost'}
-  ];
-  const prefersReduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches||false;
-  let slots;
-  try{
-    const result=await fetch('/api/showcase',{cache:'no-store',credentials:'omit'});
-    if(!result.ok)return;
-    const parsed=await result.json();if(!parsed.ok)return;
-    slots=parsed.slots||{};
-  }catch{return;}
-  function trustedSource(item){
-    if(!item||!['motion','video'].includes(item.kind))return null;
-    let u;try{u=new URL(item.url);}catch{return null;}
-    if(u.protocol!=='https:'||u.username||u.password)return null;
-    if(item.kind==='motion'&&item.provider==='image'&&/\.(gif|webp|apng)$/i.test(u.pathname))return u;
-    if(item.kind==='video'){
-      if(item.provider==='file'&&/\.(mp4|webm)$/i.test(u.pathname))return u;
-      if(item.provider==='youtube'&&u.hostname==='www.youtube-nocookie.com'&&/^\/embed\/[A-Za-z0-9_-]{11}$/.test(u.pathname))return u;
-      if(item.provider==='vimeo'&&u.hostname==='player.vimeo.com'&&/^\/video\/\d+$/.test(u.pathname))return u;
-    }
-    return null;
-  }
-  for(const cfg of stageConfig){
-    const item=slots[cfg.slot],u=trustedSource(item);
-    if(!u)continue;
-    const wrapper=$(cfg.wrapper),host=$(cfg.host);
-    if(!wrapper||!host)continue;
-    const screen=document.createElement('div');screen.className='showcase-video-screen showcase-video-screen--'+cfg.slot;
-    if(item.kind==='motion'){
-      const picture=document.createElement('img');
-      picture.className='motion-image';picture.src=u.href;picture.loading='lazy';picture.decoding='async';
-      picture.referrerPolicy='no-referrer';
-      picture.alt='LUMENDA SELECT '+cfg.slot+' animated visual';
-      picture.onerror=()=>{wrapper.hidden=true;};
-      screen.append(picture);
-    }else if(item.provider==='file'){
-      const video=document.createElement('video');
-      video.src=u.href;video.poster=cfg.slot==='aura'?'/media/aura':'/media/fte';
-      video.preload=cfg.slot==='brand'?'metadata':'none';
-      video.muted=true;video.controls=true;video.playsInline=true;video.loop=true;
-      video.setAttribute('aria-label','LUMENDA SELECT '+cfg.slot+' product film');
-      video.onerror=()=>{wrapper.hidden=true;};
-      screen.append(video);
-      if(!prefersReduced&&'IntersectionObserver' in window){
-        const watcher=new IntersectionObserver(entries=>{
-          for(const entry of entries){
-            if(entry.isIntersecting&&document.visibilityState==='visible')video.play().catch(()=>{});
-            else video.pause();
-          }
-        },{threshold:.3});
-        watcher.observe(screen);
-        document.addEventListener('visibilitychange',()=>{if(document.hidden)video.pause();},{passive:true});
-      }
-    }else{
-      const preview=document.createElement('div');preview.className='showcase-video-screen__preview';
-      const button=document.createElement('button');button.type='button';button.className='showcase-video-screen__play';
-      button.textContent='▶ '+tr('playVideo');button.dataset.videoPlay='1';
-      button.onclick=()=>{
-        const frame=document.createElement('iframe');
-        const url=new URL(u.href);
-        url.searchParams.set('autoplay','1');
-        url.searchParams.set(item.provider==='vimeo'?'muted':'mute','1');
-        frame.src=url.href;frame.title='LUMENDA SELECT '+cfg.slot+' film';
-        frame.allow='autoplay; fullscreen; picture-in-picture; encrypted-media';
-        frame.allowFullscreen=true;frame.referrerPolicy='strict-origin-when-cross-origin';
-        screen.replaceChildren(frame);screen.classList.remove('showcase-video-screen--external');
-      };
-      screen.classList.add('showcase-video-screen--external');screen.append(preview,button);
-    }
-    host.replaceChildren(screen);
-    wrapper.hidden=false;
-  }
-})();
-+n.toLocaleString('en-HK',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const subtotalDisplay=$('cartSubtotal');
-  if(subtotalDisplay)subtotalDisplay.textContent=count?fmt(subtotal):'HK$0.00';
-  const message=$('cartCalculation');
-  if(message)message.textContent=!count?'選擇商品即可即時計算。':
-    (pending?'購物車含待報價商品，已知小計不等於最終貨款。 ':'')+
-    (subtotal>=4000?'已知商品小計達 HK$4,000 免運門檻，待店主核實。':'距離 HK$4,000 免運門檻尚差 '+fmt(4000-subtotal)+'。')+
-    ' 運費／稅費按地區核實，付款前提供正式總額。';
+  const priced=PRODUCTS.reduce((sum,product)=>{
+    const unit=Number(product.price?.baseAmount);
+    return sum+(product.price?.baseCurrency==='HKD' && Number.isFinite(unit) && unit>0?Math.round(unit*100)*(selected[product.sku]||0):0);
+  },0);
+  const needsQuote=PRODUCTS.some(product=>(selected[product.sku]||0)>0&&!(product.price?.baseCurrency==='HKD'&&Number(product.price?.baseAmount)>0));
+  const fmt=cents=>'HK'+String.fromCharCode(36)+(cents/100).toLocaleString('en-HK',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const subtotal=$('cartSubtotal');
+  if(subtotal)subtotal.textContent=fmt(priced);
+  const notice=$('cartCalculation');
+  if(notice)notice.textContent=count===0?'選擇商品即可即時計算。':
+    (needsQuote?'購物車含待報價商品，未有最終總價。 ':'')+
+    (priced>=400000?'已標價商品小計達免運門檻，待賣家核對。':'已標價商品距離免運門檻尚差 '+fmt(400000-priced)+'。')+
+    ' 運費同稅費須核實，唔會自動扣款。';
 }
 function textVal(name){const el=document.querySelector('[name="'+name+'"]');return el?.value?.trim()||'';}
 function renderResult(){
