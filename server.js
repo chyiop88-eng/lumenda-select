@@ -1,5 +1,6 @@
 import postgres from 'postgres';
 import { calculateCart } from './lib/cart-pricing.mjs';
+import {createPayPalController} from './lib/paypal-service.mjs';
 import {buildSellerQuote,checkoutAmountCents,stripeCheckoutParams,quoteHash,paidStripeSessionValid,verifyStripeEvent} from './lib/checkout-payments.mjs';
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
@@ -65,6 +66,7 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || '';
 const ADMIN_SESSION_SECONDS = 8*60*60;
+const PAYPAL=createPayPalController({DB,ensureTable,send,parseJSON,unpackJsonValue,limit});
 let initPromise;
 let mediaInitPromise;
 function ensureTable() {
@@ -79,6 +81,18 @@ function ensureTable() {
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS receipt_token_hash text`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS quote jsonb`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS cart_snapshot jsonb`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_order_id text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_approval_url text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_quote_hash text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_mode text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_order_created_at timestamptz`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_create_lock text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_create_lock_at timestamptz`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_capture_lock text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_capture_lock_at timestamptz`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS paypal_capture_id text`;
+      await DB`CREATE UNIQUE INDEX IF NOT EXISTS lumenda_paypal_order_uidx ON lumenda_orders(paypal_order_id)`;
+      await DB`CREATE UNIQUE INDEX IF NOT EXISTS lumenda_paypal_capture_uidx ON lumenda_orders(paypal_capture_id)`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS stripe_session_id text`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS stripe_checkout_url text`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS stripe_checkout_expires_at timestamptz`;
@@ -352,13 +366,13 @@ async function handle(req) {
 
   const path=new URL(req.url).pathname;
   if(path==='/api/health' && req.method==='GET')
-    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'13.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,contactsEnabled:!!DB,receiptBotEnabled:!!DB,agentInvitesEnabled:!!DB,botMode:(process.env.XAI_API_KEY&&process.env.XAI_BOT_ENABLED==='true')?'grok':'rules',paymentLinksEnabled:!!DB,stripeCheckoutEnabled:stripeReady(),stripeMode:stripeReady()?STRIPE_MODE:null,paymentsLive:stripeReady()&&STRIPE_MODE==='live',shippingMarkets:Object.keys(MARKETS)});
+    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'13.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,contactsEnabled:!!DB,receiptBotEnabled:!!DB,agentInvitesEnabled:!!DB,botMode:(process.env.XAI_API_KEY&&process.env.XAI_BOT_ENABLED==='true')?'grok':'rules',paymentLinksEnabled:!!DB,stripeCheckoutEnabled:stripeReady(),stripeMode:stripeReady()?STRIPE_MODE:null,paypalCheckoutEnabled:PAYPAL.available(),paypalMode:PAYPAL.available()?PAYPAL.mode:null,paymentsLive:stripeReady()&&STRIPE_MODE==='live',shippingMarkets:Object.keys(MARKETS)});
   if(path==='/api/cart/estimate' && req.method==='POST'){
     try {const body=await parseJSON(req);return send({ok:true,cart:calculateCart(body.items,PRODUCTS,4000)});}
     catch(e){return send({ok:false,error:e.message||'購物車無效'},400);}
   }
   if(path==='/api/markets' && req.method==='GET')
-    return send({markets:MARKETS,paymentMode:'seller_quoted',stripeCheckoutEnabled:stripeReady(),paymentsLive:stripeReady()&&STRIPE_MODE==='live',shippingPolicy:SHIPPING_POLICY});
+    return send({markets:MARKETS,paymentMode:'seller_quoted',stripeCheckoutEnabled:stripeReady(),paypalCheckoutEnabled:PAYPAL.available(),paymentsLive:(stripeReady()&&STRIPE_MODE==='live')||(PAYPAL.available()&&PAYPAL.mode==='live'),shippingPolicy:SHIPPING_POLICY});
 
   if(path==='/api/showcase' && req.method==='GET'){
     const slots=emptyShowcase();
@@ -436,14 +450,18 @@ async function handle(req) {
       if(!/^[A-Za-z0-9_-]{43}$/.test(token))err('私人訂單連結無效',400);
       await ensureTable();
       const hash=createHash('sha256').update(token).digest('hex');
-      const rows=await DB`SELECT id,market,created_at,status,items,quote,payment_status,payment_verified_at
+      const rows=await DB`SELECT id,market,created_at,status,items,quote,payment_status,payment_verified_at,
+        paypal_order_id,customer,stripe_session_id
         FROM lumenda_orders WHERE receipt_token_hash=${hash} LIMIT 1`;
       if(!rows.length)return send({ok:false,error:'搵唔到呢張訂單'},404);
       const o=rows[0];
       return send({ok:true,order:{id:o.id,market:o.market,createdAt:o.created_at,
         status:o.status,items:unpackJsonValue(o.items,[]),quote:unpackJsonValue(o.quote,null),paymentStatus:o.payment_status,
         paidVerified:!!o.payment_verified_at,
-        stripeCheckoutAvailable:stripeReady()&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled',
+        paymentPreference:unpackJsonValue(o.customer,{})?.paymentMethod||'',
+        paypalCheckoutAvailable:PAYPAL.available()&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled'&&!o.stripe_session_id,
+        paypalMode:PAYPAL.available()?PAYPAL.mode:null,
+        stripeCheckoutAvailable:stripeReady()&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled'&&!o.paypal_order_id,
         stripeCheckoutMode:stripeReady()?STRIPE_MODE:null},
         botMessage:'已收到訂單查詢，店主稍後核實商品、運費、稅項同正式報價。'});
     }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
@@ -471,7 +489,8 @@ async function handle(req) {
         payment_status=${paymentLink?'link_ready':'not_requested'},payment_verified_at=NULL,
         payment_reference=NULL
         WHERE id=${id} AND status<>'cancelled' AND payment_verified_at IS NULL
-          AND stripe_session_id IS NULL
+          AND stripe_session_id IS NULL AND paypal_order_id IS NULL
+          AND (paypal_create_lock IS NULL OR paypal_create_lock_at < now()-interval '2 minutes')
           AND (stripe_checkout_lock IS NULL OR stripe_checkout_lock_at < now()-interval '2 minutes')
         RETURNING id,quote,payment_status`;
       if(!updated.length)err('訂單已付款或結帳進行中，不能修改報價，請轉人工核對',409);
@@ -501,6 +520,10 @@ async function handle(req) {
   }
 
 
+  if(path==='/api/order/paypal/create'&&req.method==='POST')return PAYPAL.create(req);
+  if(path==='/api/order/paypal/capture'&&req.method==='POST')return PAYPAL.capture(req);
+  if(path==='/api/payments/paypal/webhook'&&req.method==='POST')return PAYPAL.webhook(req);
+
   // Card collection occurs ONLY at the PSP-hosted Stripe Checkout page.
   // A secret receipt token authorizes the request, not an order ID or client prices.
   if(path==='/api/order/checkout'&&req.method==='POST'){
@@ -516,12 +539,12 @@ async function handle(req) {
       const selection=await DB.begin(async tx=>{
         const rows=await tx`SELECT id,quote,status,payment_verified_at,stripe_session_id,
           stripe_checkout_url,stripe_checkout_expires_at,stripe_quote_hash,
-          stripe_checkout_lock,stripe_checkout_lock_at
+          stripe_checkout_lock,stripe_checkout_lock_at,paypal_order_id
           FROM lumenda_orders WHERE receipt_token_hash=${hash} FOR UPDATE`;
         if(!rows.length)err('訂單不存在',404);
         const o=rows[0],q=unpackJsonValue(o.quote,null);
         if(o.status==='cancelled'||o.payment_verified_at)err('訂單已結束或付款已核實',409);
-        if(!q||q.paymentLink)err('尚未有可使用嘅 Stripe 正式報價，請聯絡賣家',409);
+        if(!q||q.paymentLink||o.paypal_order_id)err('尚未有可使用嘅 Stripe 正式報價，請聯絡賣家',409);
         const built=stripeCheckoutParams({orderId:o.id,quote:q,publicSiteUrl:process.env.PUBLIC_SITE_URL});
         if(o.stripe_session_id && o.stripe_quote_hash===built.fingerprint &&
            o.stripe_checkout_expires_at && new Date(o.stripe_checkout_expires_at).getTime()>Date.now()+60000){
@@ -561,7 +584,7 @@ async function handle(req) {
         stripe_checkout_lock=NULL,stripe_checkout_lock_at=NULL,payment_status='checkout_ready'
         WHERE id=${selection.id} AND stripe_checkout_lock=${selection.lock}
           AND payment_verified_at IS NULL
-          AND quote->>'quotedAt'=${selection.quote.quotedAt}
+          AND quote->>'quotedAt'=${selection.quote.quotedAt} AND paypal_order_id IS NULL
         RETURNING id`;
       if(!saved.length)err('結帳過程資料已改變，請聯絡賣家',409);
       return send({ok:true,url:u.href,provider:'stripe',mode:STRIPE_MODE});
@@ -750,7 +773,7 @@ async function handle(req) {
   }
   if(path==='/api/orders' && req.method==='GET') {
     if(!validAdmin(req)||!validAdminOrigin(req)) return send({ok:false,error:'Unauthorized'},401);
-    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,cart_snapshot,payment_status,payment_verified_at,payment_reference FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders:orders.map(normalizedOrder)});}
+    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,cart_snapshot,payment_status,payment_verified_at,payment_reference,paypal_order_id,stripe_session_id FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders:orders.map(normalizedOrder)});}
     catch(e){console.error('Order fetch failed',e?.message);return send({ok:false,error:'Database unavailable'},503);}
   }
   if(path.startsWith('/api/orders/') && req.method==='PATCH') {
