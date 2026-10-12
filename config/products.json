@@ -1,8 +1,14 @@
 [
-  {"sku":"FTE230","name":"SK-II Facial Treatment Essence 230ml","tag":"Essence / 精華露","visual":"ESSENCE"},
-  {"sku":"CLEAR230","name":"SK-II Facial Treatment Clear Lotion 230ml","tag":"Toner / 化妝水","visual":"CLEAR"},
-  {"sku":"SKINPOWER80","name":"SK-II SKINPOWER Advanced Cream 80g","tag":"Moisturiser / 面霜","visual":"CREAM"},
-  {"sku":"GENOPTICS50","name":"SK-II GenOptics Essence 50ml","tag":"Serum / 精華","visual":"SERUM"},
-  {"sku":"MASK6","name":"SK-II Facial Treatment Mask 6pcs","tag":"Mask / 面膜","visual":"MASK"},
-  {"sku":"SET01","name":"SK-II Skincare Selection (contents to confirm)","tag":"Custom Set / 套裝待確認","visual":"SET"}
+  {
+    "sku": "FTE230",
+    "name": "SK-II Facial Treatment Essence 230ml",
+    "tag": "Essence / 神仙水",
+    "visual": "ESSENCE"
+  },
+  {
+    "sku": "GENOPTICS50",
+    "name": "SK-II GenOptics Aura Essence 50ml",
+    "tag": "Serum / 小燈泡",
+    "visual": "AURA"
+  }
 ]

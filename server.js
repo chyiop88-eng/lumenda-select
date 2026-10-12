@@ -15,6 +15,7 @@ const STATIC_FILES={
 };
 const MARKETS = JSON.parse(readFileSync(join(ROOT, 'config', 'markets.json'), 'utf8'));
 const PRODUCTS = JSON.parse(readFileSync(join(ROOT, 'config', 'products.json'), 'utf8'));
+const SHIPPING_POLICY = Object.freeze({ currency: 'HKD', freeShippingThresholdHKD: 4000, qualifyingAmount: 'seller_confirmed_merchandise_subtotal', shippingBelowThreshold: 'quote_by_destination', applicableTaxes: 'quoted_separately', eligibility: 'pending_quote' });
 const HD_MEDIA = {
   '/campaign-facial-treatment-essence-hd-v7.webp': 'hd-art/fte-q94.webp',
   '/campaign-genoptics-aura-essence-hd-v7.webp': 'hd-art/aura-q94.webp'
@@ -144,7 +145,7 @@ function validateOrder(body) {
   if(!['standard','express'].includes(deliverySpeed)) err('請選擇有效運送方式',400);
   const customer={name,phone,phoneIntl,email,company:clean(person.company,120),
     contactMethod:clean(person.contactMethod,30),contactId:clean(person.contactId,100),
-    shipping,paymentMethod,otherPayment,deliverySpeed,deliveryNote:clean(body.deliveryNote,300)};
+    shipping,paymentMethod,otherPayment,deliverySpeed,deliveryNote:clean(body.deliveryNote,300),shippingPolicy:{...SHIPPING_POLICY,freeShippingEligible:null}};
   return {market,items,customer,note:clean(body.note,500)};
 }
 // Basic in-memory burst limiter. For serious production traffic add managed protection.
@@ -186,9 +187,9 @@ async function handle(req) {
 
   const path=new URL(req.url).pathname;
   if(path==='/api/health' && req.method==='GET')
-    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'9.0.0',hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
+    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'9.1.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
   if(path==='/api/markets' && req.method==='GET')
-    return send({markets:MARKETS,paymentMode:'enquiry_only',paymentsLive:false});
+    return send({markets:MARKETS,paymentMode:'enquiry_only',paymentsLive:false,shippingPolicy:SHIPPING_POLICY});
   if(path==='/api/admin/login' && req.method==='POST') {
     if(!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
     if(adminLoginLimited(req)) return send({ok:false,error:'嘗試次數太多，請 15 分鐘後再試。'},429);

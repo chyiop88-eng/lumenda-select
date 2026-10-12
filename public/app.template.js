@@ -81,18 +81,16 @@ function updateCountry(preserveAddress) {
 }
 function renderProducts(){
   const grid=$('productsGrid');grid.replaceChildren();
-  const tagKeys={FTE230:'essence',CLEAR230:'toner',SKINPOWER80:'cream',GENOPTICS50:'serum',MASK6:'mask',SET01:'set'};
+  const tagKeys={FTE230:'essence',GENOPTICS50:'serum'};
   for(const p of PRODUCTS){
     const card=document.createElement('article');card.className='product';
-    const art=document.createElement('div');art.className='product-art';
-    const artLabel=document.createElement('span');artLabel.textContent=p.visual;art.append(artLabel);
     const body=document.createElement('div');body.className='product-body';
     const tag=document.createElement('span');tag.className='pill';tag.textContent=tr(tagKeys[p.sku]||'set');
     const title=document.createElement('h3');title.textContent=p.name;
     const hint=document.createElement('p');hint.className='hint';hint.textContent=tr('priceRequest');
     const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=tr('add');
     button.addEventListener('click',()=>{selected[p.sku]=Math.min(30,(selected[p.sku]||0)+1);renderCart();});
-    body.append(tag,title,hint,button);card.append(art,body);grid.append(card);
+    body.append(tag,title,hint,button);card.append(body);grid.append(card);
   }
 }
 function renderCart(){

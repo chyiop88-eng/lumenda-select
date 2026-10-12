@@ -5,13 +5,17 @@ This is a source project prepared for Render, adapted from the original Railway 
 ## What it includes
 
 - Six-market storefront: CN, HK, TW, MY, VN, TH; market-specific shipping fields and a separate language selector (Traditional Chinese, Simplified Chinese, English, Malay, Vietnamese, Thai)
-- Six SK-II product enquiry cards, cart, customer and delivery data, payment *preferences* (not a checkout charge)
+- Two SK-II signature product enquiry cards (神仙水 230ml and 小燈泡 50ml), cart, customer and delivery data, payment *preferences* (not a checkout charge)
 - Real order API, persisted into PostgreSQL once `DATABASE_URL` is set
 - Admin sign-in at `/admin` (also `/admin.html`), protected order list and status updates, CSV export
 - Two admin image upload slots: Facial Treatment Essence / 神仙水, GenOptics Aura Essence / 小燈泡. Uploaded JPG/PNG/WebP up to 4 MB are stored persistently in PostgreSQL `bytea` and served under `/media/fte` and `/media/aura` (with the high-quality default art as fallback)
 - Preloaded 1122×1402 promotional WebP artwork (~330 KB each) from the user's previous website project
 
 **Independent retailer:** LUMENDA SELECT is not affiliated with, endorsed by, or an authorized store of SK-II/P&G. Promotional artwork is AI-created retailer artwork, not official campaign photography.
+
+## Shipping policy (HKD)
+
+The seller-confirmed merchandise subtotal of **HK$4,000 or above** qualifies for free shipping. Below HK$4,000, shipping fees and any destination taxes or duties are assessed separately. Free shipping does not waive statutory taxes. Prices have not been published, so the website cannot determine eligibility automatically; each new order records the threshold and remains `pending_quote` until a seller confirms the quotation. Other six-market currency displays are informational and do not change the HKD threshold.
 
 ## Run
 

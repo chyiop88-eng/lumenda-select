@@ -53,3 +53,14 @@ test('missing DB returns explicit error instead of pretending orders are enabled
   const order=await fetch(url+'/api/orders',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});
   assert.equal(order.status,503);
 });
+
+test('only two SK-II star products are orderable and shipping policy uses HKD 4000',async()=>{
+  const r=await fetch(url+'/api/health');assert.equal(r.status,200);
+  const info=await r.json();assert.deepEqual(info.featuredSKUs,['FTE230','GENOPTICS50']);
+  assert.equal(info.shippingPolicy.currency,'HKD');assert.equal(info.shippingPolicy.freeShippingThresholdHKD,4000);
+  assert.equal(info.shippingPolicy.eligibility,'pending_quote');
+  const html=await (await fetch(url+'/')).text();assert.match(html,/shippingHeadline/);
+  const app=await (await fetch(url+'/app.js')).text();
+  assert.match(app,/GENOPTICS50/);assert.doesNotMatch(app,/CLEAR230|SKINPOWER80|MASK6|SET01/);
+  const admin=await (await fetch(url+'/admin')).text();assert.ok(admin.includes('HK$4,000'));
+});

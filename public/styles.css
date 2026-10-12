@@ -11,3 +11,30 @@
 .campaign-showcase{padding-top:36px}.campaign-copy{margin-bottom:18px}.campaign-copy h2{margin:12px 0 8px}.campaign-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}.campaign-card{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 10px 28px #3b232a10}.campaign-card img{display:block;width:100%;height:auto;background:#f6edef}.campaign-card figcaption{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;padding:16px 18px 18px}.campaign-card figcaption strong{display:block;font:20px Georgia,serif;color:var(--purple)}.campaign-card figcaption span{display:block;color:var(--muted);font-size:13px;text-align:right;max-width:46%}@media(max-width:840px){.campaign-grid{grid-template-columns:1fr}.campaign-card figcaption{flex-direction:column;align-items:flex-start}.campaign-card figcaption span{text-align:left;max-width:none}}
 
 .campaign-legal{font-size:12px;line-height:1.65;margin:14px 0 0}.campaign-card img{aspect-ratio:561/701;object-fit:cover}
+
+/* Focused SK-II star-products storefront — compact order-first layout */
+.shipping-banner{display:flex;align-items:center;justify-content:center;gap:18px;padding:13px 24px;background:#f6e9ec;border-bottom:1px solid var(--line);color:#583145}
+.shipping-banner strong{font-size:19px;white-space:nowrap;color:#642941}
+.shipping-banner span{max-width:850px;font-size:13px;line-height:1.55}
+.shipping-small{margin:10px 0 0;padding:11px 12px;border:1px solid #e6d5db;border-radius:9px;background:#fbf0f1;color:#70334b;font-size:13px;line-height:1.55}
+.hero{padding:45px 22px 55px}.hero p{margin-bottom:20px}
+.wrap{padding-top:27px;padding-bottom:24px}.wrap>h2{margin:10px 0 12px}
+.campaign-showcase{padding-top:25px}.campaign-copy{margin-bottom:12px}.campaign-copy h2{margin:8px 0 7px}
+.campaign-grid{gap:14px;max-width:820px;margin:0 auto}.campaign-card{margin:0}
+.campaign-card figcaption{padding:11px 13px 12px;align-items:center;gap:8px}.campaign-card figcaption strong{font-size:17px}
+.campaign-card figcaption span{font-size:12px}
+#products>.muted{margin:0 0 14px}
+#productsGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#productsGrid .product-art{display:none}
+#productsGrid .product-body{padding:16px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+#productsGrid .product-body h3{margin:3px 0;min-height:0;font-size:17px}
+#productsGrid .product-body .hint{margin:0 0 8px}
+#productsGrid .product-body .btn{padding:10px 16px;width:100%;max-width:240px}
+.checkout{gap:15px;grid-template-columns:minmax(0,1fr) minmax(250px,320px)}
+.checkout .card{padding:18px}.field-grid{gap:10px}
+.section-heading{margin:15px 0 9px;gap:10px}
+.section-heading b{height:26px;width:26px}.section-heading h3{margin:0}
+input,select,textarea{padding:9px 10px}
+footer{margin-top:22px;padding:24px 20px}
+@media(max-width:850px){.checkout{grid-template-columns:1fr}.shipping-banner{flex-direction:column;align-items:flex-start;gap:3px;padding:12px 17px}.campaign-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.campaign-card figcaption{flex-direction:column;align-items:flex-start}}
+@media(max-width:600px){.hero{padding:34px 18px 42px}.wrap{padding:20px 16px}#productsGrid{grid-template-columns:1fr}.campaign-grid{grid-template-columns:1fr;max-width:430px}.campaign-card figcaption{flex-direction:row;align-items:flex-start}.campaign-card figcaption span{text-align:right;max-width:46%}.checkout .card{padding:16px}}
