@@ -1,0 +1,58 @@
+name: Audit Public LUMENDA Deployment
+on:
+  push:
+    branches:
+      - audit/live-http-lumenda-20261012
+permissions:
+  contents: read
+jobs:
+  public-http-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Confirm homepage and admin HTTP 200
+        run: |
+          set -euo pipefail
+          for path in / /admin; do
+            http_status=$(curl --retry 3 --retry-delay 4 --connect-timeout 12 --max-time 50 -L -sS -o /tmp/lumenda_page -w '%{http_code}' "https://lumenda-select-preview.onrender.com$path")
+            echo "$path HTTP $http_status bytes=$(wc -c </tmp/lumenda_page)"
+            test "$http_status" = "200"
+            test -s /tmp/lumenda_page
+          done
+      - name: Confirm live health and payment switches
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 4 --max-time 50 https://lumenda-select-preview.onrender.com/api/health -o /tmp/lumenda_health.json
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const assert=require('node:assert/strict');
+          const h=JSON.parse(fs.readFileSync('/tmp/lumenda_health.json','utf8'));
+          console.log(JSON.stringify({ok:h.ok,uiVersion:h.uiVersion,featuredSKUs:h.featuredSKUs,ordersEnabled:h.ordersEnabled,stripeCheckoutEnabled:h.stripeCheckoutEnabled,paypalCheckoutEnabled:h.paypalCheckoutEnabled,paymentsLive:h.paymentsLive}));
+          assert.equal(h.ok,true);
+          assert.equal(h.uiVersion,'14.1.0');
+          assert.deepEqual(h.featuredSKUs,['FTE230','FTE330','GENOPTICS50']);
+          assert.equal(h.ordersEnabled,true);
+          assert.equal(h.paypalCheckoutEnabled,false);
+          assert.equal(h.stripeCheckoutEnabled,false);
+          assert.equal(h.paymentsLive,false);
+          NODE
+      - name: Confirm live CNY cart calculator without creating any orders
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 4 --max-time 50 \
+            -H 'Content-Type: application/json' \
+            -d '{"items":[{"sku":"FTE230","qty":2},{"sku":"FTE330","qty":1}]}' \
+            https://lumenda-select-preview.onrender.com/api/cart/estimate -o /tmp/lumenda_cart.json
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const assert=require('node:assert/strict');
+          const d=JSON.parse(fs.readFileSync('/tmp/lumenda_cart.json','utf8'));
+          assert.equal(d.ok,true);
+          assert.equal(d.cart.pricedSubtotalCny,2490);
+          assert.equal(d.cart.itemCount,3);
+          assert.equal(d.cart.paymentDueNowHkd,0);
+          assert.equal(d.cart.quoteRequired,true);
+          assert.equal(d.cart.lines[0].unitPriceCny,750);
+          assert.equal(d.cart.lines[1].unitPriceCny,990);
+          console.log(JSON.stringify({cartCny:d.cart.pricedSubtotalCny,count:d.cart.itemCount,paymentDueNowHkd:d.cart.paymentDueNowHkd}));
+          NODE
