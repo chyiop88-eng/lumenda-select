@@ -67,7 +67,7 @@ test('three video and motion slots can be edited only by owner',async()=>{
  const cleared=await req('/api/showcase');assert.equal(cleared.data.slots.aura,null);
  console.log('VIDEO_CMS_INTEGRATION_PASS slots=3 providers=youtube,file,image hiddenDisabled=true existingOrdersUntouched=true');
 });
-test('front-end has no empty cinema spaces, respects original two products and strict CSP',async()=>{
+test('front-end has no empty cinema spaces, lists two SK-II essence sizes and GenOptics, with strict CSP',async()=>{
  const page=await fetch(base+'/');const html=await page.text();
  for(const slot of ['brandCinema','fteMediaSlot','auraMediaSlot'])assert.ok(html.includes('id="'+slot+'"')&&html.includes('hidden'));
  assert.equal(page.status,200);
@@ -80,7 +80,7 @@ test('front-end has no empty cinema spaces, respects original two products and s
  assert.ok(admin.includes('id="showcaseAdminCards"'));
  const info=await req('/api/health');
  assert.ok(['12.0.0','13.0.0'].includes(info.data.uiVersion));
- assert.deepEqual(info.data.featuredSKUs,['FTE230','GENOPTICS50']);
+ assert.deepEqual(info.data.featuredSKUs,['FTE230','FTE330','GENOPTICS50']);
  assert.equal(info.data.shippingPolicy.freeShippingThresholdHKD,4000);
- console.log('VISUAL_SLOTS_PASS brand+fte+aura hidden-before-config; hk4000+two-products unchanged');
+ console.log('VISUAL_SLOTS_PASS brand+fte+aura hidden-before-config; hk4000+two FTE sizes plus GenOptics');
 });
