@@ -1,0 +1,38 @@
+name: Agent invite integration (isolated DB)
+on:
+  push:
+    branches:
+      - agent-invites-v11-2026-10-12
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: audit
+          POSTGRES_PASSWORD: integration_test_only
+          POSTGRES_DB: lumenda_agent_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U audit -d lumenda_agent_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install app and build frontend
+        run: |
+          npm install --omit=dev
+          npm run build
+      - name: Test admin agent links and order attribution on disposable DB
+        env:
+          DATABASE_URL: postgres://audit:integration_test_only@127.0.0.1:5432/lumenda_agent_test
+        run: node --test integration/referrals.integration.test.mjs
