@@ -1,4 +1,4 @@
-# LUMENDA SELECT — Owner handover / 站長交接資料
+> **Pending v14 implementation:** [Checkout deployment and Stripe webhook checklist](CHECKOUT_DEPLOYMENT.md) is on the review branch only. This adds strictly calculated cart/order/quote totals and Stripe Checkout behind disabled-by-default environment gates; it has NOT been connected to the owner's merchant credentials nor installed on the public Render production site. Do not treat the below v13 configuration as evidence that Stripe has been activated.\n\n# LUMENDA SELECT — Owner handover / 站長交接資料
 Updated 2026-10-12. No passwords, database URLs, session signing keys or customer records are included.
 
 ## Important access
