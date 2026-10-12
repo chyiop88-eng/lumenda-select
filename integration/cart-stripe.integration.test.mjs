@@ -101,7 +101,7 @@ test('verified cart -> persisted order -> strict quote -> gateway -> signed webh
  assert.equal(created.length,1,'Double-click must not create another live Checkout Session');
  const forged=await api('/api/payments/stripe/webhook',{method:'POST',headers:{'stripe-signature':'t=1111111111,v1=bad','content-type':'application/json'},body:'{}'});
  assert.equal(forged.status,400);
- const fakePaid={...created[0].session,payment_status:'paid'};
+ const fakePaid={...created[0].session,payment_status:'paid',status:'complete'};
  const mismatched=await api('/api/payments/stripe/webhook',{method:'POST',
    ...stripeEvent(fakePaid,{amount_total:1})});
  assert.equal(mismatched.status,409,'Signed but incorrect charge amount must not mark paid');
