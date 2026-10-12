@@ -31,7 +31,7 @@ test('invalid prices and quote edits fail closed',()=>{
   for(const v of ['-1','2.123','x','',1000000.999])assert.throws(()=>hkdCents(v),RangeError);
   const quote={...buildSellerQuote(one,{subtotalHkd:'899',shippingHkd:'0',taxHkd:'0'}),quotedAt:'2026-10-12T00:00:00.000Z'};
   assert.throws(()=>checkoutAmountCents({...quote,totalHkd:1}),/不一致/);
-  assert.throws(()=>checkoutAmountCents({...quote,lines:[{...quote.lines[0],lineSubtotalHkd:1}]}),/明細/);
+  assert.throws(()=>checkoutAmountCents({...quote,lines:[{...quote.lines[0],lineSubtotalHkd:1}]}),/不一致/);
   assert.throws(()=>checkoutAmountCents({...quote,shippingHkd:1,freeShipping:true}),/運費|不一致/);
 });
 test('Stripe form contains exclusively server-quoted cents with binding metadata',()=>{
