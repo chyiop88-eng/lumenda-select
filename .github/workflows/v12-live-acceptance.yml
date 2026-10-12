@@ -1,0 +1,38 @@
+name: v12 live read-only acceptance
+on:
+  push:
+    branches:
+      - video-slots-v12-2026-10-12
+permissions:
+  contents: read
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Check live movie placeholders and protection with GET only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,sys,urllib.request,urllib.error,time
+          host="https://lumenda-select-preview.onrender.com"
+          checks=[]
+          def check(name,path,expected,verify=None):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(host+path,headers={"User-Agent":"lumenda-owner-video-acceptance/1.0"}),timeout=35) as r:
+                      code=r.status;body=r.read(150000).decode("utf-8","replace")
+              except urllib.error.HTTPError as e:
+                  code=e.code;body=e.read(4000).decode("utf-8","replace")
+              okay=code==expected and (verify(body) if verify else True)
+              print(("[PASS]" if okay else "[FAIL]")+" "+name+" HTTP "+str(code),flush=True)
+              checks.append(okay);time.sleep(0.3)
+          check("v12-health","/api/health",200,lambda s:json.loads(s)["uiVersion"]=="12.0.0" and json.loads(s)["ordersEnabled"] is True)
+          check("public-three-slots","/api/showcase",200,lambda s:set(json.loads(s)["slots"])=={"brand","fte","aura"})
+          check("owner-video-editor","/admin",200,lambda s:'id="showcaseAdminCards"' in s)
+          check("owner-video-protected","/api/admin/showcase",401)
+          check("hidden-brand-and-product-video-spaces","/",200,lambda s:all('id="'+i+'"' in s for i in ("brandCinema","fteMediaSlot","auraMediaSlot")))
+          check("kinetic-rose-petals-styles","/styles.css",200,lambda s:".floating-petals" in s and ".showcase-video-screen" in s)
+          check("video-client-runtime","/app.js",200,lambda s:"initializeCinematicMedia" in s and "'/api/showcase'" in s)
+          print("V12_LIVE_VIDEO_ACCEPTANCE "+str(sum(checks))+"/"+str(len(checks)),flush=True)
+          if not all(checks):sys.exit(1)
+          PY
