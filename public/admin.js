@@ -192,8 +192,8 @@ function makeQuoteEditor(o){
   for(const line of lines)panel.append(contactElement('p',line.name+' × '+line.qty+
     ' · '+(line.priceStatus==='requires_seller_quote'?'待賣家填正式單價':'HK$'+Number(line.unitPriceHkd).toFixed(2)+'／支 · HK$'+Number(line.lineSubtotalHkd).toFixed(2))));
   wrap.append(panel);
-  const settled=o.payment_status==='owner_verified'||o.payment_status==='stripe_paid';
-  const locked=settled||!!o.stripe_session_id;
+  const settled=['owner_verified','stripe_paid','paypal_paid'].includes(o.payment_status);
+  const locked=settled||!!o.stripe_session_id||!!o.paypal_order_id;
   const fields=contactElement('div',undefined,'field-grid');
   const controls={};
   const specs=[
@@ -253,17 +253,24 @@ function makeQuoteEditor(o){
         payload.unitPricesHkd=Object.fromEntries(Object.entries(prices).map(([sku,input])=>[sku,input.value]));
         const result=await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/quote',{method:'POST',body:JSON.stringify(payload)});
         show($('status'),'✅ '+o.id+' 核對成功 · 正式應付 HK$'+Number(result.quote.totalHkd).toFixed(2)+
-          (payload.paymentLink?' · 已設定獨立付款連結':' · 如啟用 Stripe，客人可用私人進度頁結帳'),true);
+          (payload.paymentLink?' · 已設定獨立付款連結':' · 如已啟用 PayPal，客人可用私人訂單連結結帳'),true);
         await loadOrders();
       }catch(e){show($('status'),e.message,false);}finally{save.disabled=false;}
     };
     actions.append(save);
   }else actions.append(contactElement('p','報價已鎖定，不能喺付款頁建立後或付款成功後改價。','hint'));
-  if(o.payment_status==='link_ready'){
+  const manualMethod=['FPS','USDT'].includes(o.customer?.paymentMethod)?o.customer.paymentMethod:'PAYPAL_LINK';
+  if(!settled&&!o.stripe_session_id&&!o.paypal_order_id&&o.quote && (o.payment_status==='link_ready'||['FPS','USDT'].includes(manualMethod))){
     const verify=contactElement('div',undefined,'quote-verification');
     const checkbox=document.createElement('input');checkbox.type='checkbox';
-    const label=document.createElement('label');label.append(checkbox,document.createTextNode(' 我已喺實際商戶後台核對真實付款'));
-    const ref=document.createElement('input');ref.type='text';ref.maxLength=100;ref.placeholder='商戶交易參考編號（至少 6 字元）';
+    const label=document.createElement('label');label.append(checkbox,document.createTextNode(manualMethod==='FPS'?' 我已喺自己銀行帳戶核實 FPS 實際入帳及完整港幣金額':manualMethod==='USDT'?' 我已喺正確網絡核實交易最終確認、收款錢包及足額 USDT':' 我已喺 PayPal 商戶後台核實真實入帳'));
+    const ref=document.createElement('input');ref.type='text';ref.maxLength=100;ref.placeholder=manualMethod==='USDT'?'真實區塊鏈交易 Hash（64 位十六進位）':manualMethod==='FPS'?'銀行 FPS 入帳參考編號':'PayPal 真實交易參考編號';
+    let network=null;
+    if(manualMethod==='USDT'){
+      network=document.createElement('select');
+      network.add(new Option('請選擇 USDT 區塊鏈網絡',''));
+      for(const chain of ['TRC20','ERC20','BEP20'])network.add(new Option(chain,chain));
+    }
     const button=contactElement('button','由管理員核實付款','btn outline');button.type='button';
     button.onclick=async()=>{
       if(!checkbox.checked||ref.value.trim().length<6){show($('status'),'請先核實入帳並填參考編號',false);return;}
@@ -271,11 +278,16 @@ function makeQuoteEditor(o){
       button.disabled=true;
       try{
         await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/payment',{
-          method:'POST',body:JSON.stringify({confirmed:true,transactionReference:ref.value.trim()})});
+          method:'POST',body:JSON.stringify({confirmed:true,transactionReference:ref.value.trim(),method:manualMethod,network:network?.value||''})});
         show($('status'),'已記錄店主核實付款：'+o.id,true);await loadOrders();
       }catch(e){show($('status'),e.message,false);}finally{button.disabled=false;}
     };
-    verify.append(label,ref,button);actions.append(verify);
+    verify.append(label,ref);if(network)verify.append(network);
+    verify.append(button);actions.append(verify);
+  }else if(o.payment_status==='paypal_paid'){
+    actions.append(contactElement('p','✅ PayPal API 已核實實際入帳 · '+(o.payment_reference||'—'),'hint'));
+  }else if(o.payment_status==='paypal_approval_pending'){
+    actions.append(contactElement('p','PayPal 付款核准頁已建立，等待客人授權及付款核實。','hint'));
   }else if(o.payment_status==='stripe_paid'){
     actions.append(contactElement('p','✅ Stripe 簽名 Webhook 已驗證付款 · '+(o.payment_reference||'—'),'hint'));
   }else if(o.payment_status==='owner_verified'){
