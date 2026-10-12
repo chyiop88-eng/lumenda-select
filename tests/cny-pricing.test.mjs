@@ -62,7 +62,7 @@ test('no client repricing: refuse fake CNY amount and tampered FX on PSP quote',
 test('legacy quote hashes remain identical after CNY price launch',()=>{
   const quote={currency:'HKD',lines:[{sku:'FTE230',name:'SK-II FTE 230ml',
     qty:1,unitPriceHkd:899,lineSubtotalHkd:899}],
-    subtotalHkd:899,shippingHkd:0,taxHkd:0,totalHkd:899,
+    subtotalHkd:899,shippingHkd:0,taxHkd:0,totalHkd:899,freeShipping:false,
     quotedAt:'2026-10-12T00:00:00Z'};
   const fields={orderId:'LMD-20261012-ABCDEF1234',currency:quote.currency,
     lines:quote.lines,subtotalHkd:quote.subtotalHkd,shippingHkd:quote.shippingHkd,
