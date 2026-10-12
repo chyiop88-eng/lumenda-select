@@ -66,7 +66,6 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || '';
 const ADMIN_SESSION_SECONDS = 8*60*60;
-const PAYPAL=createPayPalController({DB,ensureTable,send,parseJSON,unpackJsonValue,limit});
 let initPromise;
 let mediaInitPromise;
 function ensureTable() {
@@ -202,6 +201,7 @@ function normalizedOrder(record){
 const send = (obj, status=200) => Response.json(obj, {status, headers: {
   'Cache-Control':'no-store','X-Robots-Tag':'noindex,nofollow','X-Content-Type-Options':'nosniff'
 }});
+const PAYPAL=createPayPalController({DB,ensureTable,send,parseJSON,unpackJsonValue,limit});
 function err(msg, status) { const e=new Error(msg);e.status=status;throw e; }
 function clean(v,max=150) { return String(v??'').replace(/[<>]/g,'').trim().slice(0,max); }
 function safeEqual(a,b){
