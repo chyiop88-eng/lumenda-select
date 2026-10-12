@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { calculateCart } from './lib/cart-pricing.mjs';
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { readFileSync } from 'node:fs';
@@ -52,6 +53,7 @@ function ensureTable() {
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS referral_code text`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS receipt_token_hash text`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS quote jsonb`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS cart_snapshot jsonb`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_status text NOT NULL DEFAULT 'not_requested'`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_verified_at timestamptz`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_reference text`;
@@ -148,7 +150,7 @@ function unpackJsonValue(value,fallback){
 }
 function normalizedOrder(record){
   return {...record,customer:unpackJsonValue(record.customer,{}),
-    items:unpackJsonValue(record.items,[]),quote:unpackJsonValue(record.quote,null)};
+    items:unpackJsonValue(record.items,[]),cart_snapshot:unpackJsonValue(record.cart_snapshot,null),quote:unpackJsonValue(record.quote,null)};
 }
 
 const send = (obj, status=200) => Response.json(obj, {status, headers: {
@@ -319,6 +321,10 @@ async function handle(req) {
   const path=new URL(req.url).pathname;
   if(path==='/api/health' && req.method==='GET')
     return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'13.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,contactsEnabled:!!DB,receiptBotEnabled:!!DB,agentInvitesEnabled:!!DB,botMode:(process.env.XAI_API_KEY&&process.env.XAI_BOT_ENABLED==='true')?'grok':'rules',paymentLinksEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
+  if(path==='/api/cart/estimate' && req.method==='POST'){
+    try {const body=await parseJSON(req);return send({ok:true,cart:calculateCart(body.items,PRODUCTS,4000)});}
+    catch(e){return send({ok:false,error:e.message||'購物車無效'},400);}
+  }
   if(path==='/api/markets' && req.method==='GET')
     return send({markets:MARKETS,paymentMode:'enquiry_only',paymentsLive:false,shippingPolicy:SHIPPING_POLICY});
 
@@ -568,14 +574,15 @@ async function handle(req) {
     try {
       await ensureTable();
       const data=validateOrder(await parseJSON(req));
+      const cart=calculateCart(data.items,PRODUCTS,4000);
       const id='LMD-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+randomBytes(5).toString('hex').toUpperCase();
       const customer=DB.json(data.customer),items=DB.json(data.items);
       const referralCode=await activeReferralCode(data.referralCandidate);
       const receiptToken=randomBytes(32).toString('base64url');
       const receiptHash=createHash('sha256').update(receiptToken).digest('hex');
-      await DB`INSERT INTO lumenda_orders(id,status,market,customer,items,note,referral_code,receipt_token_hash)
-        VALUES (${id},${'pending_quote'},${data.market},${customer}::jsonb,${items}::jsonb,${data.note},${referralCode},${receiptHash})`;
-      return send({ok:true,orderId:id,status:'pending_quote',paymentRequired:false,
+      await DB`INSERT INTO lumenda_orders(id,status,market,customer,items,note,referral_code,receipt_token_hash,cart_snapshot)
+        VALUES (${id},${'pending_quote'},${data.market},${customer}::jsonb,${items}::jsonb,${data.note},${referralCode},${receiptHash},${DB.json(cart)}::jsonb)`;
+      return send({ok:true,orderId:id,status:'pending_quote',cart,paymentRequired:false,
         botAcknowledgement:'已收到你的訂單查詢。店主稍後核實貨品、運費、稅費同報價。提交唔代表已付款。',
         receiptToken,referralTracked:!!referralCode},201);
     } catch(e) {
@@ -585,7 +592,7 @@ async function handle(req) {
   }
   if(path==='/api/orders' && req.method==='GET') {
     if(!validAdmin(req)||!validAdminOrigin(req)) return send({ok:false,error:'Unauthorized'},401);
-    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,payment_status,payment_verified_at,payment_reference FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders:orders.map(normalizedOrder)});}
+    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,cart_snapshot,payment_status,payment_verified_at,payment_reference FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders:orders.map(normalizedOrder)});}
     catch(e){console.error('Order fetch failed',e?.message);return send({ok:false,error:'Database unavailable'},503);}
   }
   if(path.startsWith('/api/orders/') && req.method==='PATCH') {
