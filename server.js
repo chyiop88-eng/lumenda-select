@@ -460,7 +460,7 @@ async function handle(req) {
         status:o.status,items:unpackJsonValue(o.items,[]),quote:unpackJsonValue(o.quote,null),paymentStatus:o.payment_status,
         paidVerified:!!o.payment_verified_at,
         paymentPreference:unpackJsonValue(o.customer,{})?.paymentMethod||'',
-        paypalCheckoutAvailable:PAYPAL.available()&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled'&&!o.stripe_session_id,
+        paypalCheckoutAvailable:PAYPAL.available()&&unpackJsonValue(o.customer,{})?.paymentMethod==='PAYPAL'&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled'&&!o.stripe_session_id,
         paypalMode:PAYPAL.available()?PAYPAL.mode:null,
         stripeCheckoutAvailable:stripeReady()&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled'&&!o.paypal_order_id,
         stripeCheckoutMode:stripeReady()?STRIPE_MODE:null},
