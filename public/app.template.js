@@ -82,7 +82,7 @@ function updateCountry(preserveAddress) {
     if(preserveAddress && Object.prototype.hasOwnProperty.call(old,control.name)) control.value=old[control.name];
   }
   $('dial').textContent=m.dial;
-  $('currencyMessage').textContent=tr('currency',{currency:m.currency});
+  $('currencyMessage').textContent='商品標價：人民幣 CNY；正式付款：港幣 HKD，需店主確認結算匯率與運費（目的地：'+m.currency+'）';
   $('countryHint').textContent=(I18N.COUNTRY_HINTS[language]||I18N.COUNTRY_HINTS['zh-Hant'])[code];
   const choice=$('paymentMethod'),oldPay=choice.value;
   choice.replaceChildren();
@@ -93,47 +93,69 @@ function updateCountry(preserveAddress) {
 }
 function renderProducts(){
   const grid=$('productsGrid');grid.replaceChildren();
-  const tagKeys={FTE230:'essence',GENOPTICS50:'serum'};
+  const tagKeys={FTE230:'essence',FTE330:'essence',GENOPTICS50:'serum'};
   for(const p of PRODUCTS){
     const card=document.createElement('article');card.className='product';
     const body=document.createElement('div');body.className='product-body';
     const tag=document.createElement('span');tag.className='pill';tag.textContent=tr(tagKeys[p.sku]||'set');
     const title=document.createElement('h3');title.textContent=p.name;
-    const hint=document.createElement('p');hint.className='hint';hint.textContent=p.price?.usdApprox?tr('price'):tr('priceRequest');
+    const hint=document.createElement('p');hint.className='hint';
+    const unit=Number(p.price?.baseAmount);
+    hint.textContent=p.price?.baseCurrency==='CNY'&&Number.isFinite(unit)?
+      '¥'+unit.toLocaleString('zh-CN')+' CNY / '+(language==='en'?'bottle':'支'):
+      p.price?.baseCurrency==='HKD'?'HK$'+unit.toFixed(2):tr('priceRequest');
     const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=tr('add');
-    button.addEventListener('click',()=>{selected[p.sku]=Math.min(30,(selected[p.sku]||0)+1);renderCart();});
-    body.append(tag,title,hint);if(p.price?.usdApprox){const caution=document.createElement('small');caution.className='price-caution';caution.textContent=tr('quote');body.append(caution);}body.append(button);card.append(body);grid.append(card);
+    button.addEventListener('click',()=>{
+      selected[p.sku]=Math.min(30,(selected[p.sku]||0)+1);
+      renderCart();
+    });
+    body.append(tag,title,hint);
+    if(p.price?.baseCurrency==='CNY'){
+      const note=document.createElement('small');note.className='price-caution';
+      note.textContent=language==='en'?'CNY list price; final PayPal checkout in HKD after confirmed conversion.':
+        '人民幣商品標價；港幣匯率、運費及稅費待賣家正式確認。';
+      body.append(note);
+    }
+    body.append(button);card.append(body);grid.append(card);
   }
 }
 function renderCart(){
-  const lines=$('cartLines');lines.replaceChildren();let count=0;
+  const lines=$('cartLines');lines.replaceChildren();
+  let count=0,cnyCents=0,hkdCents=0,unpriced=false;
   for(const p of PRODUCTS){
-    const q=selected[p.sku]||0;if(!q)continue;count+=q;
+    const qty=selected[p.sku]||0;if(!qty)continue;count+=qty;
     const row=document.createElement('div');row.className='cart-row';
-    const name=document.createElement('div');name.textContent=p.name+(p.price?.baseCurrency==='HKD'?' · HK$'+Number(p.price.baseAmount).toFixed(2)+' (US$'+Number(p.price.usdApprox).toFixed(2)+' approx.)':'');
+    const name=document.createElement('div');
+    const unit=Number(p.price?.baseAmount);
+    const currency=p.price?.baseCurrency;
+    const priceValid=Number.isFinite(unit)&&unit>0;
+    let caption='';
+    if(currency==='CNY'&&priceValid){
+      caption=' · ¥'+unit.toLocaleString('zh-CN')+' CNY × '+qty;
+      cnyCents+=Math.round(unit*100)*qty;
+    }else if(currency==='HKD'&&priceValid){
+      caption=' · HK$'+unit.toFixed(2)+' × '+qty;
+      hkdCents+=Math.round(unit*100)*qty;
+    }else unpriced=true;
+    name.textContent=p.name+caption;
     const controls=document.createElement('div');controls.className='qty';
     const down=document.createElement('button');down.type='button';down.textContent='−';down.ariaLabel=tr('decrease');
     down.onclick=()=>{selected[p.sku]=Math.max(0,(selected[p.sku]||0)-1);renderCart();};
-    const qty=document.createElement('b');qty.textContent=String(q);
+    const span=document.createElement('b');span.textContent=String(qty);
     const up=document.createElement('button');up.type='button';up.textContent='+';up.ariaLabel=tr('increase');
     up.onclick=()=>{selected[p.sku]=Math.min(30,(selected[p.sku]||0)+1);renderCart();};
-    controls.append(down,qty,up);row.append(name,controls);lines.append(row);
+    controls.append(down,span,up);row.append(name,controls);lines.append(row);
   }
-  if(count===0){const p=document.createElement('p');p.className='muted';p.textContent=tr('cartEmpty');lines.append(p);}
+  if(!count){const empty=document.createElement('p');empty.className='muted';empty.textContent=tr('cartEmpty');lines.append(empty);}
   $('cartCount').textContent=String(count);
-  const priced=PRODUCTS.reduce((sum,product)=>{
-    const unit=Number(product.price?.baseAmount);
-    return sum+(product.price?.baseCurrency==='HKD' && Number.isFinite(unit) && unit>0?Math.round(unit*100)*(selected[product.sku]||0):0);
-  },0);
-  const needsQuote=PRODUCTS.some(product=>(selected[product.sku]||0)>0&&!(product.price?.baseCurrency==='HKD'&&Number(product.price?.baseAmount)>0));
-  const fmt=cents=>'HK'+String.fromCharCode(36)+(cents/100).toLocaleString('en-HK',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const yuan='¥'+(cnyCents/100).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
   const subtotal=$('cartSubtotal');
-  if(subtotal)subtotal.textContent=fmt(priced);
+  if(subtotal)subtotal.textContent=yuan;
   const notice=$('cartCalculation');
-  if(notice)notice.textContent=count===0?'選擇商品即可即時計算。':
-    (needsQuote?'購物車含待報價商品，未有最終總價。 ':'')+
-    (priced>=400000?'已標價商品小計達免運門檻，待賣家核對。':'已標價商品距離免運門檻尚差 '+fmt(400000-priced)+'。')+
-    ' 運費同稅費須核實，唔會自動扣款。';
+  if(notice)notice.textContent=!count?'揀選商品後即時計算人民幣小計。':
+    '已標價神仙水小計：'+yuan+(unpriced?'；購物車另有待報價商品。':'。')+
+    (hkdCents?' 已標價港幣商品小計 HK$'+(hkdCents/100).toFixed(2)+'。':'')+
+    ' 港幣兌換率、免運門檻、運費及稅費待賣家確認，未報價不收款。';
 }
 function textVal(name){const el=document.querySelector('[name="'+name+'"]');return el?.value?.trim()||'';}
 function renderResult(){
