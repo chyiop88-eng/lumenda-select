@@ -805,7 +805,12 @@ async function handle(req) {
     try {await ensureTable();const body=await parseJSON(req);
       if(!['pending_quote','confirmed','packed','shipped','completed','cancelled'].includes(body.status)) err('Invalid status',400);
       const id=clean(path.split('/').pop(),90);
-      const updated=await DB`UPDATE lumenda_orders SET status=${body.status} WHERE id=${id} RETURNING id`;
+      const updated=await DB`UPDATE lumenda_orders SET status=${body.status}
+        WHERE id=${id}
+          AND (${body.status} NOT IN ('packed','shipped','completed') OR payment_verified_at IS NOT NULL)
+          AND (${body.status}<>'cancelled' OR
+            (payment_verified_at IS NULL AND stripe_session_id IS NULL AND paypal_order_id IS NULL))
+        RETURNING id`;
       return send({ok:updated.length>0},updated.length?200:404);
     }catch(e){return send({ok:false,error:e.status?e.message:'Cannot update order'},e.status||503);}
   }
