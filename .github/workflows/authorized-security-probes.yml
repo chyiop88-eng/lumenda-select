@@ -23,9 +23,9 @@ jobs:
               for attempt in range(2):
                   try:
                       with urllib.request.urlopen(request,timeout=40,context=context) as res:
-                          result=res.status;response_headers=dict(res.headers);payload=res.read(4096)
+                          result=res.status;response_headers={k.lower():v for k,v in res.headers.items()};payload=res.read(4096)
                   except urllib.error.HTTPError as e:
-                      result=e.code;response_headers=dict(e.headers);payload=e.read(4096)
+                      result=e.code;response_headers={k.lower():v for k,v in e.headers.items()};payload=e.read(4096)
                   except Exception as e:
                       result="ERROR";payload=repr(type(e).__name__).encode()
                   if result!="ERROR":break
@@ -38,7 +38,7 @@ jobs:
               print(("[PASS]" if ok else "[FAIL]"),name,"HTTP",result,flush=True)
               time.sleep(0.35)
           probe("health", "GET","/api/health",{200},check=lambda p,h:json.loads(p).get('ordersEnabled') is True and json.loads(p).get('featuredSKUs')==['FTE230','GENOPTICS50'] and json.loads(p).get('shippingPolicy',{}).get('freeShippingThresholdHKD')==4000)
-          probe("homepage-headers","GET","/",{200},check=lambda p,h:h.get('X-Frame-Options','').upper()=='DENY' and 'frame-ancestors' in h.get('Content-Security-Policy','') and h.get('X-Content-Type-Options','')=='nosniff')
+          probe("homepage-headers","GET","/",{200},check=lambda p,h:h.get('x-frame-options','').upper()=='DENY' and 'frame-ancestors' in h.get('content-security-policy','') and h.get('x-content-type-options','')=='nosniff')
           probe("admin-login-page","GET","/admin",{200})
           probe("anonymous-order-list-denied","GET","/api/orders",{401})
           probe("anonymous-admin-session-denied","GET","/api/admin/session",{401})
