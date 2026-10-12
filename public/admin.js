@@ -187,7 +187,7 @@ function makeQuoteEditor(o){
   const fields=contactElement('div',undefined,'field-grid');
   const controls={};
   const specs=[
-    ['subtotalHkd','商品小計 HKD（滿 4,000 免運）',o.quote?.subtotalHkd??'','number'],
+    ['subtotalHkd','商品小計 HKD（滿 4,000 免運）',o.quote?.subtotalHkd??(o.cart_snapshot?.quoteRequired?'':o.cart_snapshot?.pricedSubtotalHkd??''),'number'],
     ['shippingHkd','運費 HKD（達門檻自動歸零）',o.quote?.shippingHkd??'0','number'],
     ['taxHkd','收件地適用稅費 HKD（自行核實）',o.quote?.taxHkd??'0','number'],
     ['paymentLink','Stripe／PayPal 官方付款連結（選填）',o.quote?.paymentLink??'','url'],
