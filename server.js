@@ -102,6 +102,7 @@ function ensureTable() {
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_status text NOT NULL DEFAULT 'not_requested'`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_verified_at timestamptz`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_reference text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS manual_payment jsonb`;
       await DB`CREATE UNIQUE INDEX IF NOT EXISTS lumenda_orders_receipt_token_hash_uidx ON lumenda_orders(receipt_token_hash)`;
     })().catch(error => { initPromise = null; throw error; });
   }
@@ -500,23 +501,46 @@ async function handle(req) {
       return send({ok:false,error:'正式報價暫時未能保存'},503);}
   }
 
+  // FPS and USDT are HUMAN-VERIFIED, never inferred from an uploaded receipt.
+  // This endpoint also preserves legacy hosted-PayPal-link manual confirmation.
   if(path.startsWith('/api/admin/orders/')&&path.endsWith('/payment')&&req.method==='POST'){
     if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
     try{
       const id=path.slice('/api/admin/orders/'.length,-'/payment'.length);
       if(!/^LMD-[0-9]{8}-[A-Fa-f0-9]{10}$/.test(id))err('訂單編號無效',400);
       const body=await parseJSON(req);
-      if(body.confirmed!==true)err('請先喺收款服務商後台核實入帳',400);
+      if(body.confirmed!==true)err('必須先從自己銀行／錢包／PayPal 商戶後台核實實際入帳',400);
       const ref=clean(body.transactionReference,100);
-      if(ref.length<6)err('請提供真實嘅付款交易參考編號',400);
+      if(ref.length<6)err('請提供有效嘅實際交易參考編號',400);
       await ensureTable();
-      const rows=await DB`UPDATE lumenda_orders SET payment_status='owner_verified',
-        payment_verified_at=now(),payment_reference=${ref}
-        WHERE id=${id} AND quote IS NOT NULL AND payment_status='link_ready'
+      const found=await DB`SELECT customer,quote,payment_status FROM lumenda_orders WHERE id=${id} LIMIT 1`;
+      if(!found.length)err('搵唔到訂單',404);
+      const customer=unpackJsonValue(found[0].customer,{});
+      const quoted=unpackJsonValue(found[0].quote,null);
+      if(!quoted)err('必須先保存正式報價',409);
+      checkoutAmountCents(quoted);
+      const chosen=clean(body.method,24).toUpperCase();
+      const preference=clean(customer.paymentMethod,24).toUpperCase();
+      const method=chosen||(['FPS','USDT'].includes(preference)?preference:'PAYPAL_LINK');
+      if(!['FPS','USDT','PAYPAL_LINK'].includes(method))err('無效收款方式',400);
+      if(method==='PAYPAL_LINK'&&found[0].payment_status!=='link_ready')
+        err('未有人工付款連結，無法手動確認 PayPal',409);
+      if(['FPS','USDT'].includes(method)&&preference!==method)
+        err('請先核對訂單原本選擇嘅收款方式',409);
+      const network=method==='USDT'?clean(body.network,20).toUpperCase():'';
+      if(method==='USDT'){
+        if(!['TRC20','ERC20','BEP20'].includes(network))err('請選擇實際使用嘅 USDT 區塊鏈網絡',400);
+        if(!/^(0x)?[a-fA-F0-9]{64}$/.test(ref))err('USDT 必須提供真實鏈上交易 Hash（64位十六進位）',400);
+      }
+      const details={method,network,reviewedAt:new Date().toISOString(),verifiedBy:'owner_manual_bank_or_blockchain_review'};
+      const updated=await DB`UPDATE lumenda_orders SET payment_status='owner_verified',
+        payment_verified_at=now(),payment_reference=${ref},manual_payment=${DB.json(details)}::jsonb
+        WHERE id=${id} AND quote IS NOT NULL AND status<>'cancelled'
+          AND payment_verified_at IS NULL AND stripe_session_id IS NULL AND paypal_order_id IS NULL
         RETURNING id,payment_status`;
-      return send({ok:rows.length>0,paymentStatus:rows[0]?.payment_status},rows.length?200:409);
+      return send({ok:updated.length>0,paymentStatus:updated[0]?.payment_status},updated.length?200:409);
     }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
-      return send({ok:false,error:'付款核實暫時失敗'},503);}
+      return send({ok:false,error:'人工付款核對暫時失敗'},503);}
   }
 
 
@@ -773,7 +797,7 @@ async function handle(req) {
   }
   if(path==='/api/orders' && req.method==='GET') {
     if(!validAdmin(req)||!validAdminOrigin(req)) return send({ok:false,error:'Unauthorized'},401);
-    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,cart_snapshot,payment_status,payment_verified_at,payment_reference,paypal_order_id,stripe_session_id FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders:orders.map(normalizedOrder)});}
+    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,cart_snapshot,payment_status,payment_verified_at,payment_reference,manual_payment,paypal_order_id,stripe_session_id FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders:orders.map(normalizedOrder)});}
     catch(e){console.error('Order fetch failed',e?.message);return send({ok:false,error:'Database unavailable'},503);}
   }
   if(path.startsWith('/api/orders/') && req.method==='PATCH') {
