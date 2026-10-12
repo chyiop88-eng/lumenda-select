@@ -79,7 +79,7 @@ Before collecting live orders, verify: public store on phone/desktop; six market
 
 ## v13 new functionality
 
-- FTE230 seller price **¥800 CNY**, USD indication **US$119.54** (2026-10-12 rate); GenOptics Aura Essence remains quote-only. USD display excludes shipping and destination taxes.
+- FTE230 current seller price **HK$899**, USD indication **US$114.55** (reference 2026-10-12 rate 1 HKD ≈ 0.127422 USD); GenOptics Aura Essence remains quote-only. USD display excludes shipping and destination taxes.
 - Owner-only phone lookup from submitted orders in `/admin`, no scraping of abandoned form inputs or unauthorized bulk marketing.
 - Private customer receipt link on successful order enquiry, with order status, quotation, and third-party hosted payment button only after a seller supplies one.
 - Standalone rule-based customer-service bot for initial order questions, with optional disabled-by-default xAI/Grok API if owner separately supplies an xAI API key and approves costs.
