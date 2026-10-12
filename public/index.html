@@ -66,6 +66,22 @@
  <div class="shell products-stage__inner"><div class="section-head section-head--products"><span class="section-head__line" aria-hidden="true"></span><div><p class="eyebrow" data-i18n="curated">OUR SELECTION</p><h2 data-i18n="productHeading">SK-II 明星產品 · 立即查詢</h2><p data-i18n="productNote">只接受神仙水與小燈泡兩款明星產品接單，供應及價格以賣家最終確認為準。</p></div><span class="section-head__line" aria-hidden="true"></span></div>
  <div class="grid" id="productsGrid"></div></div>
 </section>
+<section class="concierge-stage" id="concierge">
+  <div class="shell"><div class="concierge-card reveal">
+    <div><span class="eyebrow">LUMENDA · CUSTOMER CARE</span><h2 data-i18n="chatTitle">LUMENDA 線上客服</h2>
+    <p class="muted" data-i18n="chatHelp">問我兩款明星產品、付款與免運流程。唔好輸入電話或個人資料。</p>
+    <small id="conciergeMode">客服 · 自動回覆</small></div>
+    <div class="concierge-chat">
+      <div class="concierge-messages" id="conciergeMessages" role="log" aria-live="polite"></div>
+      <form id="conciergeForm" class="concierge-form">
+        <input id="conciergeQuestion" name="question" minlength="2" maxlength="350" autocomplete="off" data-i18n-placeholder="chatPlaceholder" placeholder="例如：滿幾多免運？" required>
+        <button id="conciergeSend" type="submit" class="btn" data-i18n="chatSend">發送</button>
+      </form>
+      <p class="hint">店舖客服只提供一般資訊，唔會自動確認真實訂單、收款或運費稅率。</p>
+    </div>
+  </div></div>
+</section>
+
 <section class="checkout-stage" id="checkout">
  <div class="shell"><div class="section-head section-head--checkout reveal"><span class="section-head__line" aria-hidden="true"></span><div><p class="eyebrow" data-i18n="enquiry">PERSONAL ORDER ENQUIRY</p><h2 data-i18n="checkoutHeading">結帳資料 · 六地配送</h2><p class="checkout-stage__caption">LUMENDA SELECT · EXCLUSIVE ENQUIRY SERVICE</p></div><span class="section-head__line" aria-hidden="true"></span></div>
  <p id="referralNotice" class="referral-notice" hidden></p>
@@ -97,6 +113,6 @@
 </main>
 <footer class="glow-footer"><div class="footer__ripple" aria-hidden="true"></div><div class="shell footer__inner"><div class="footer__top"><div><span class="footer__brand">LUMENDA <em>SELECT</em></span><p data-i18n="footerRetailer">Independent Beauty Retailer · 獨立護膚精選零售商</p></div><a href="#top" class="footer__up" aria-label="Back to top">↑</a></div><div class="footer__line"></div><p data-i18n="footerAffiliation">SK-II 商標屬其權利人所有。本網站與 SK-II、P&G 並無官方授權或隸屬關係。</p><p data-i18n="footerTerms">退換貨、價格、庫存、稅項及運送條款以最終確認為準；尚未提供即時付款。</p><div class="footer__bottom"><span>© 2026 LUMENDA SELECT</span><span>SELECTED WITH CARE <i aria-hidden="true">✧</i></span></div></div></footer>
 <div class="disclaimer" data-i18n="disclaimer">網站只收集訂單查詢，所有價格、庫存、運費、稅項及付款資料都須賣家確認。網站不會直接扣款。</div>
-<script src="/i18n.js" defer></script><script src="/app.js" defer></script>
+<script src="/i18n.js" defer></script><script src="/app.js" defer></script><script src="/bot.js" defer></script>
 <noscript><p class="noscript" data-i18n="noscript">請開啟 JavaScript 以填寫物流資料。</p></noscript>
 </body></html>

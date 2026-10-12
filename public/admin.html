@@ -15,4 +15,16 @@
 <div id="agentStatus" class="status" role="status" aria-live="polite"></div>
 <div id="agentList" class="agent-list"></div>
 <p class="hint">目前只統計經專屬連結送出嘅訂單數量；唔會自動計算佣金、收款或者向代理公開客戶資料。停用連結後，已有訂單歸屬仍會保留。</p>
-</section><section class="card" style="margin-top:16px"><div class="button-row"><button class="btn" id="refresh">重新讀取訂單</button><button class="btn outline" id="export" disabled>匯出 CSV</button><button class="btn outline" id="logout">登出</button></div><div class="status" id="status" role="status"></div></section><div id="orders"></div></section></main><footer>LUMENDA SELECT · Private admin area</footer><script src="/admin.js" defer></script></body></html>
+</section><section class="card crm-manager" id="contactsManager" style="margin-top:16px">
+<h3>📇 客戶電話通訊錄／記憶</h3>
+<p class="muted">只整理客人已正式提交並同意處理嘅訂單聯絡電話。可按電話或姓名搜尋；不會記錄未送出嘅輸入。客戶名單只限管理員查看，唔作自動廣告或群發。</p>
+<div class="button-row"><input id="contactSearch" type="search" maxlength="36" placeholder="輸入姓名／電話搜尋（清空顯示最新資料）" autocomplete="off" style="flex:1;min-width:180px">
+<button type="button" class="btn outline" id="searchContacts">搜尋</button>
+<button type="button" class="btn outline" id="nextContacts">下一頁</button></div>
+<div id="contactsStatus" class="status" role="status" aria-live="polite"></div>
+<div id="contactsList" class="contacts-list"></div></section>
+<section class="card" style="margin-top:16px"><h3>🤖 訂單 Bot／線上付款準備</h3>
+<p class="muted">網站客服先用安全規則回覆，並為每張新訂單提供私人進度連結。你日後喺 Render Environment 加 `XAI_API_KEY`、設 `XAI_BOT_ENABLED=true`，先會試用 Grok API（第三方用量可能收費）。</p>
+<p class="muted">線上付款：你可喺每張訂單填入實際港幣報價，再提供商戶自己建立嘅 Stripe／PayPal 付款連結。<strong>唔會單靠網址回傳或者客人截圖就自動當已付款</strong>，需要喺服務商後台核實。</p>
+<p class="hint">價格：神仙水人民幣 ¥800／支，約 US$119.54（2026-10-12 匯率參考）。小燈泡價格仍待確認；HK$4,000 免運門檻由正式港幣商品小計計算，稅費照實際目的地另報。</p></section>
+<section class="card" style="margin-top:16px"><div class="button-row"><button class="btn" id="refresh">重新讀取訂單</button><button class="btn outline" id="export" disabled>匯出 CSV</button><button class="btn outline" id="logout">登出</button></div><div class="status" id="status" role="status"></div></section><div id="orders"></div></section></main><footer>LUMENDA SELECT · Private admin area</footer><script src="/admin.js" defer></script></body></html>

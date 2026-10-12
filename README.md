@@ -1,4 +1,4 @@
-# LUMENDA SELECT · Rose Aura v12 (video + motion image slots)
+# LUMENDA SELECT · v13 (two SK-II heroes + customer CRM and safe checkout handoff)
 
 This live Node.js/PostgreSQL website is deployed at https://lumenda-select-preview.onrender.com. Source is managed on GitHub and automatically built on Render. The app is an enquiry storefront, not an online card checkout.
 
@@ -76,3 +76,12 @@ Do not reuse the admin password disclosed in any earlier chat; generate a new st
 `npm run test:smoke` (requires a local database to test storage and orders end to end; the included basic smoke test intentionally runs without DB and checks that saving orders fails safely).
 
 Before collecting live orders, verify: public store on phone/desktop; six markets and address fields; admin login and access controls; fresh-image upload and persistent image after deploy; test order stored in Postgres; order status update and CSV download; backups; the merchant details and data/privacy policy.
+
+## v13 new functionality
+
+- FTE230 seller price **¥800 CNY**, USD indication **US$119.54** (2026-10-12 rate); GenOptics Aura Essence remains quote-only. USD display excludes shipping and destination taxes.
+- Owner-only phone lookup from submitted orders in `/admin`, no scraping of abandoned form inputs or unauthorized bulk marketing.
+- Private customer receipt link on successful order enquiry, with order status, quotation, and third-party hosted payment button only after a seller supplies one.
+- Standalone rule-based customer-service bot for initial order questions, with optional disabled-by-default xAI/Grok API if owner separately supplies an xAI API key and approves costs.
+- Owner manually enters HKD subtotal and jurisdiction-specific taxes, with free shipping for confirmed merchandise subtotal >= HK$4,000. Optional official Stripe/PayPal hosted payment URL. No live checkout, automatic payment verification, card storage or webhook; `paymentsLive` remains false.
+- For deployment and full safety/operational details, read [`OWNER_HANDOVER.md`](OWNER_HANDOVER.md).

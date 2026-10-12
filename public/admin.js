@@ -7,19 +7,19 @@ function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function safeCSV(value){let v=String(value??'');if(/^[\s]*[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"';}
 function addressText(o){const s=o.customer?.shipping;if(!s)return[o.customer?.address,o.customer?.city,o.customer?.postalCode].filter(Boolean).join(', ');return[s.postcode,s.province,s.region,s.city,s.district,s.subdistrict,s.address1,s.address2].filter(Boolean).join(' / ');}
 function show(el,txt,ok){el.textContent=txt;el.className='status show '+(ok?'ok':'err');}
-function setLoggedIn(on){$('loginCard').hidden=on;$('adminArea').hidden=!on;if(!on){rows=[];agents=[];$('orders').replaceChildren();$('agentList').replaceChildren();$('showcaseAdminCards').replaceChildren();$('export').disabled=true;}}
+function setLoggedIn(on){$('loginCard').hidden=on;$('adminArea').hidden=!on;if(!on){rows=[];agents=[];$('orders').replaceChildren();$('agentList').replaceChildren();$('showcaseAdminCards').replaceChildren();$('contactsList').replaceChildren();$('export').disabled=true;}}
 async function api(url,options={}){const res=await fetch(url,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let data={};try{data=await res.json();}catch{}if(!res.ok){const e=new Error(data.error||('HTTP '+res.status));e.status=res.status;throw e;}return data;}
 async function uploadMedia(key,inputId){const file=$(inputId).files?.[0];if(!file){show($('mediaStatus'),'請先揀圖片。',false);return;}if(file.size>4*1024*1024){show($('mediaStatus'),'圖片不可超過 4 MB。',false);return;}if(!['image/jpeg','image/png','image/webp'].includes(file.type)){show($('mediaStatus'),'只支援 JPG、PNG、WebP。',false);return;}show($('mediaStatus'),'上傳中…',true);const res=await fetch('/api/admin/media/'+key,{method:'POST',credentials:'same-origin',headers:{'Content-Type':file.type},body:file});let data={};try{data=await res.json();}catch{}if(!res.ok){if(res.status===401){setLoggedIn(false);show($('loginStatus'),'登入已失效，請重新登入。',false);}else show($('mediaStatus'),data.error||'上傳失敗',false);return;}show($('mediaStatus'),'✅ 已上傳 '+(key==='fte'?'神仙水':'小燈泡')+' 廣告圖（'+Math.round(data.bytes/1024)+' KB）。首頁已更新。',true);$(inputId).value='';}
 async function loadOrders(){try{const data=await api('/api/orders');rows=data.orders||[];show($('status'),'成功讀取 '+rows.length+' 張訂單',true);render();}catch(e){if(e.status===401){setLoggedIn(false);show($('loginStatus'),'登入已失效，請重新登入。',false);}else show($('status'),e.message,false);}}
-function render(){const target=$('orders');target.replaceChildren();$('export').disabled=!rows.length;for(const o of rows){const c=o.customer||{},card=document.createElement('section');card.className='card';card.style.marginTop='16px';const h=document.createElement('h3');h.textContent=o.id+' · '+o.market+' · '+new Date(o.created_at||o.createdAt).toLocaleString();const summary=document.createElement('div');const text=[['收件人',c.name],['聯絡電話',c.phoneIntl||c.phone],['電郵',c.email],['公司',c.company],['地址',addressText(o)],['物流備註',c.deliveryNote],['配送',c.deliverySpeed],['付款偏好',c.paymentMethod||c.preferredPayment],['其他收款查詢',c.otherPayment],['聯絡方式',(c.contactMethod||'')+' '+(c.contactId||'')],['介紹來源',o.referral_code?(agents.find(a=>a.code===o.referral_code)?.name||'未命名代理')+' · '+o.referral_code:null],['備註',o.note]].filter(x=>x[1]);summary.innerHTML=text.map(([label,value])=>'<p><b>'+esc(label)+'：</b>'+esc(value)+'</p>').join('');const goods=document.createElement('p');goods.textContent=(o.items||[]).map(i=>i.sku+' × '+i.qty).join('；');const select=document.createElement('select');select.style.maxWidth='240px';for(const [value,label]of Object.entries(labels))select.add(new Option(label,value));select.value=o.status;select.onchange=async()=>{select.disabled=true;try{await api('/api/orders/'+encodeURIComponent(o.id),{method:'PATCH',body:JSON.stringify({status:select.value})});o.status=select.value;show($('status'),'已更新 '+o.id+'；網站不會自動確認付款。',true);}catch(e){show($('status'),e.message,false);await loadOrders();}finally{select.disabled=false;}};const copy=document.createElement('button');copy.className='btn outline';copy.type='button';copy.style.marginLeft='12px';copy.textContent='複製收件資料';copy.onclick=()=>{const msg=[o.id,c.name,c.phoneIntl||c.phone,addressText(o),c.deliveryNote||''].filter(Boolean).join('\n');navigator.clipboard?.writeText(msg).then(()=>show($('status'),'收件資料已複製',true)).catch(()=>show($('status'),'請手動複製收件資料',false));};card.append(h,summary,goods,select,copy);target.append(card);}if(!rows.length){const p=document.createElement('p');p.className='muted';p.textContent='暫無訂單';target.append(p);}}
-$('login').onclick=async()=>{const username=$('username').value.trim(),password=$('password').value;try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({username,password})});$('password').value='';setLoggedIn(true);show($('status'),'登入成功',true);await loadOrders();await loadAgents();await loadShowcaseMedia();}catch(e){show($('loginStatus'),e.message,false);}};
+function render(){const target=$('orders');target.replaceChildren();$('export').disabled=!rows.length;for(const o of rows){const c=o.customer||{},card=document.createElement('section');card.className='card';card.style.marginTop='16px';const h=document.createElement('h3');h.textContent=o.id+' · '+o.market+' · '+new Date(o.created_at||o.createdAt).toLocaleString();const summary=document.createElement('div');const text=[['收件人',c.name],['聯絡電話',c.phoneIntl||c.phone],['電郵',c.email],['公司',c.company],['地址',addressText(o)],['物流備註',c.deliveryNote],['配送',c.deliverySpeed],['付款偏好',c.paymentMethod||c.preferredPayment],['其他收款查詢',c.otherPayment],['聯絡方式',(c.contactMethod||'')+' '+(c.contactId||'')],['介紹來源',o.referral_code?(agents.find(a=>a.code===o.referral_code)?.name||'未命名代理')+' · '+o.referral_code:null],['備註',o.note]].filter(x=>x[1]);summary.innerHTML=text.map(([label,value])=>'<p><b>'+esc(label)+'：</b>'+esc(value)+'</p>').join('');const goods=document.createElement('p');goods.textContent=(o.items||[]).map(i=>i.sku+' × '+i.qty).join('；');const select=document.createElement('select');select.style.maxWidth='240px';for(const [value,label]of Object.entries(labels))select.add(new Option(label,value));select.value=o.status;select.onchange=async()=>{select.disabled=true;try{await api('/api/orders/'+encodeURIComponent(o.id),{method:'PATCH',body:JSON.stringify({status:select.value})});o.status=select.value;show($('status'),'已更新 '+o.id+'；網站不會自動確認付款。',true);}catch(e){show($('status'),e.message,false);await loadOrders();}finally{select.disabled=false;}};const copy=document.createElement('button');copy.className='btn outline';copy.type='button';copy.style.marginLeft='12px';copy.textContent='複製收件資料';copy.onclick=()=>{const msg=[o.id,c.name,c.phoneIntl||c.phone,addressText(o),c.deliveryNote||''].filter(Boolean).join('\n');navigator.clipboard?.writeText(msg).then(()=>show($('status'),'收件資料已複製',true)).catch(()=>show($('status'),'請手動複製收件資料',false));};card.append(h,summary,goods,select,copy,makeQuoteEditor(o));target.append(card);}if(!rows.length){const p=document.createElement('p');p.className='muted';p.textContent='暫無訂單';target.append(p);}}
+$('login').onclick=async()=>{const username=$('username').value.trim(),password=$('password').value;try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({username,password})});$('password').value='';setLoggedIn(true);show($('status'),'登入成功',true);await loadOrders();await loadAgents();await loadShowcaseMedia();await loadContacts();}catch(e){show($('loginStatus'),e.message,false);}};
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter')$('login').click();});
 $('uploadFte').onclick=()=>uploadMedia('fte','fteFile');
 $('uploadAura').onclick=()=>uploadMedia('aura','auraFile');
-$('refresh').onclick=async()=>{await loadOrders();await loadAgents();await loadShowcaseMedia();};
+$('refresh').onclick=async()=>{await loadOrders();await loadAgents();await loadShowcaseMedia();await loadContacts();};
 $('logout').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST',body:'{}'});}catch{}setLoggedIn(false);show($('loginStatus'),'已登出',true);};
 $('export').onclick=()=>{if(!rows.length)return;const header=['order_id','created_at','market','status','name','phone','email','company','address','payment_method','other_payment','delivery_speed','delivery_note','items','note','referral_code'];const matrix=[header,...rows.map(o=>{const c=o.customer||{};return[o.id,o.created_at||o.createdAt,o.market,o.status,c.name,c.phoneIntl||c.phone,c.email,c.company,addressText(o),c.paymentMethod||c.preferredPayment,c.otherPayment,c.deliverySpeed,c.deliveryNote,(o.items||[]).map(i=>i.sku+' x '+i.qty).join('; '),o.note,o.referral_code||''];})];const csv='\uFEFF'+matrix.map(cols=>cols.map(safeCSV).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lumenda-orders-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);};
-(async()=>{try{await api('/api/admin/session');setLoggedIn(true);await loadOrders();await loadAgents();await loadShowcaseMedia();}catch{setLoggedIn(false);}})();
+(async()=>{try{await api('/api/admin/session');setLoggedIn(true);await loadOrders();await loadAgents();await loadShowcaseMedia();await loadContacts();}catch{setLoggedIn(false);}})();
 
 
 function inviteUrl(code){const u=new URL('/',location.origin);u.searchParams.set('ref',code);return u.href;}
@@ -142,4 +142,104 @@ function renderShowcaseEditor(records){
     };
     card.append(name,sub,kindGroup,urlGroup,toggleLabel,save);wrap.append(card);
   }
+}
+
+
+
+// v13: owner-only phone directory. Built from orders already submitted and consented.
+let contactsPage=0,contactsSearch='';
+function contactElement(tag,content,cls){
+  const el=document.createElement(tag);if(content!==undefined)el.textContent=String(content);
+  if(cls)el.className=cls;return el;
+}
+async function loadContacts(page=0,query=contactsSearch){
+  try{
+    const result=await api('/api/admin/contacts?'+new URLSearchParams({q:query,page:String(page)}));
+    contactsPage=result.page;contactsSearch=query;
+    const host=$('contactsList');host.replaceChildren();
+    if(!result.contacts.length)host.append(contactElement('p','未有相符電話紀錄。','muted'));
+    for(const contact of result.contacts){
+      const row=contactElement('article',undefined,'contact-entry');
+      const details=document.createElement('div');const phone=contactElement('b',contact.phone||'—');
+      const note=contactElement('small',(contact.name||'未填姓名')+' · '+contact.market+' · '+contact.order_count+' 張訂單 · 最近：'+new Date(contact.last_seen_at).toLocaleDateString());
+      details.append(phone,note);
+      const copy=contactElement('button','複製電話','btn outline');
+      copy.type='button';copy.onclick=async()=>{try{await navigator.clipboard.writeText(contact.phone);show($('contactsStatus'),'電話已複製',true);}
+      catch{show($('contactsStatus'),'無法自動複製，請手動選取。',false);}};
+      row.append(details,copy);host.append(row);
+    }
+    $('nextContacts').disabled=!result.hasMore;
+    show($('contactsStatus'),'已列出 '+result.contacts.length+' 個聯絡電話 · 第 '+(page+1)+' 頁 · 僅供履行客戶訂單之用',true);
+  }catch(e){if(e.status===401){setLoggedIn(false);show($('loginStatus'),'請重新登入',false);}
+    else show($('contactsStatus'),e.message,false);}
+}
+$('searchContacts').onclick=()=>loadContacts(0,$('contactSearch').value.trim());
+$('nextContacts').onclick=()=>loadContacts(contactsPage+1,contactsSearch);
+$('contactSearch').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();loadContacts(0,$('contactSearch').value.trim());}});
+function makeQuoteEditor(o){
+  const wrap=contactElement('section',undefined,'order-quote-panel');
+  wrap.append(contactElement('h4','港幣報價及第三方付款連結'));
+  const fields=contactElement('div',undefined,'field-grid');
+  const controls={};
+  const specs=[
+    ['subtotalHkd','商品小計 HKD（滿 4,000 免運）',o.quote?.subtotalHkd??'','number'],
+    ['shippingHkd','運費 HKD（達門檻自動歸零）',o.quote?.shippingHkd??'0','number'],
+    ['taxHkd','收件地適用稅費 HKD（自行核實）',o.quote?.taxHkd??'0','number'],
+    ['paymentLink','Stripe／PayPal 官方付款連結（選填）',o.quote?.paymentLink??'','url'],
+    ['note','報價備註（選填）',o.quote?.note??'','text']
+  ];
+  for(const [key,title,value,type] of specs){
+    const label=contactElement('label',title,'field');
+    const ctrl=document.createElement('input');ctrl.type=type;ctrl.value=String(value);ctrl.autocomplete='off';
+    if(type==='number'){ctrl.min='0';ctrl.max='10000000';ctrl.step='.01';ctrl.inputMode='decimal';}
+    if(key==='paymentLink'){ctrl.placeholder='https://buy.stripe.com/... 或 https://www.paypal.com/...';ctrl.maxLength=1200;}
+    if(key==='note')ctrl.maxLength=280;
+    label.append(ctrl);fields.append(label);controls[key]=ctrl;
+  }
+  const summary=contactElement('p','','quote-summary');
+  function updateQuote(){
+    const subtotal=Number(controls.subtotalHkd.value||'0'),tax=Number(controls.taxHkd.value||'0');
+    const free=Number.isFinite(subtotal)&&subtotal>=4000;
+    controls.shippingHkd.disabled=free;if(free)controls.shippingHkd.value='0';
+    const shipping=Number(controls.shippingHkd.value||'0');
+    summary.textContent=(free?'✓ 商品小計滿 HK$4,000，免運費。':'未滿 HK$4,000，按目的地另外報運費。')+' 最終金額（未核實）：HK$'+(subtotal+shipping+tax).toFixed(2);
+  }
+  for(const field of ['subtotalHkd','shippingHkd','taxHkd'])controls[field].addEventListener('input',updateQuote);
+  updateQuote();
+  const actions=contactElement('div',undefined,'button-row');
+  const save=contactElement('button','保存正式報價／付款連結','btn');
+  save.type='button';save.onclick=async()=>{
+    save.disabled=true;
+    try{
+      const fields=Object.fromEntries(Object.entries(controls).map(([key,input])=>[key,input.value]));
+      const response=await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/quote',{method:'POST',body:JSON.stringify(fields)});
+      if(!response.ok)throw new Error('儲存失敗');
+      show($('status'),'✅ '+o.id+' 已儲存港幣報價。'+(fields.paymentLink?'私人進度頁已可提供付款連結。':'暫未設定付款連結。'),true);
+      await loadOrders();
+    }catch(e){show($('status'),e.message,false);}
+    finally{save.disabled=false;}
+  };
+  actions.append(save);
+  if(o.payment_status==='link_ready'){
+    const verify=contactElement('div',undefined,'quote-verification');
+    const checkbox=document.createElement('input');checkbox.type='checkbox';
+    const label=document.createElement('label');label.append(checkbox,document.createTextNode(' 我已喺 Stripe／PayPal 商戶後台核實實際入帳'));
+    const ref=document.createElement('input');ref.type='text';ref.maxLength=100;ref.placeholder='真實交易參考編號（至少 6 字元）';
+    const button=contactElement('button','登記已核實付款','btn outline');
+    button.type='button';button.onclick=async()=>{
+      if(!checkbox.checked||ref.value.trim().length<6){show($('status'),'請先核實入帳並填交易參考編號',false);return;}
+      if(!window.confirm('確認你已到支付服務商後台核實 '+o.id+' 嘅實際入帳？'))return;
+      button.disabled=true;
+      try{await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/payment',{method:'POST',
+        body:JSON.stringify({confirmed:true,transactionReference:ref.value.trim()})});
+        show($('status'),'已記錄商戶核實付款：'+o.id,true);await loadOrders();
+      }catch(e){show($('status'),e.message,false);}finally{button.disabled=false;}
+    };
+    verify.append(label,ref,button);actions.append(verify);
+  }else if(o.payment_status==='owner_verified'){
+    actions.append(contactElement('p','✅ 已登記店主核實付款（交易參考：'+(o.payment_reference||'—')+'）','hint'));
+  }else{
+    actions.append(contactElement('span','未啟用正式線上付款連結。','hint'));
+  }
+  wrap.append(fields,summary,actions);return wrap;
 }

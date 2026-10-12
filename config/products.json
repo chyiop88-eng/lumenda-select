@@ -3,7 +3,16 @@
     "sku": "FTE230",
     "name": "SK-II Facial Treatment Essence 230ml",
     "tag": "Essence / 神仙水",
-    "visual": "ESSENCE"
+    "visual": "ESSENCE",
+    "price": {
+      "baseCurrency": "CNY",
+      "baseAmount": 800,
+      "displayCurrency": "USD",
+      "usdApprox": 119.54,
+      "fxRateCnyToUsd": 0.149429,
+      "fxRateDate": "2026-10-12",
+      "amountStatus": "reference_excluding_shipping_and_tax"
+    }
   },
   {
     "sku": "GENOPTICS50",

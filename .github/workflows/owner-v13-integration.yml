@@ -1,0 +1,47 @@
+name: v13 Owner CRM Bot and Checkout Integration
+on:
+  push:
+    branches:
+      - owner-crm-orderbot-payment-v13-2026-10-12
+permissions:
+  contents: read
+jobs:
+  isolated-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: audit
+          POSTGRES_PASSWORD: test_only_please_discard
+          POSTGRES_DB: lumenda_v13_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U audit -d lumenda_v13_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Node dependencies and build with smoke tests
+        run: |
+          npm install --omit=dev
+          npm run build
+      - name: Verify owner CRM, safe bot, receipt links, HKD 4000 policy and hosted link quotes
+        env:
+          DATABASE_URL: postgres://audit:test_only_please_discard@127.0.0.1:5432/lumenda_v13_test
+          XAI_BOT_ENABLED: "false"
+        run: node --test integration/owner-v13.integration.test.mjs
+      - name: Verify agent referral regression
+        env:
+          DATABASE_URL: postgres://audit:test_only_please_discard@127.0.0.1:5432/lumenda_v13_test
+        run: node --test integration/referrals.integration.test.mjs
+      - name: Verify video manager regression
+        env:
+          DATABASE_URL: postgres://audit:test_only_please_discard@127.0.0.1:5432/lumenda_v13_test
+        run: node --test integration/showcase-v12.integration.test.mjs

@@ -11,7 +11,7 @@ const ROOT=dirname(fileURLToPath(import.meta.url));
 const STATIC_FILES={
   '/index.html':'text/html; charset=utf-8', '/admin.html':'text/html; charset=utf-8',
   '/styles.css':'text/css; charset=utf-8','/app.js':'text/javascript; charset=utf-8',
-  '/i18n.js':'text/javascript; charset=utf-8','/admin.js':'text/javascript; charset=utf-8','/lumenda-favicon.png':'image/png'
+  '/i18n.js':'text/javascript; charset=utf-8','/admin.js':'text/javascript; charset=utf-8','/bot.js':'text/javascript; charset=utf-8','/order.js':'text/javascript; charset=utf-8','/order.html':'text/html; charset=utf-8','/lumenda-favicon.png':'image/png'
 };
 const MARKETS = JSON.parse(readFileSync(join(ROOT, 'config', 'markets.json'), 'utf8'));
 const PRODUCTS = JSON.parse(readFileSync(join(ROOT, 'config', 'products.json'), 'utf8'));
@@ -50,6 +50,12 @@ function ensureTable() {
         market text NOT NULL, customer jsonb NOT NULL, items jsonb NOT NULL, note text
       )`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS referral_code text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS receipt_token_hash text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS quote jsonb`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_status text NOT NULL DEFAULT 'not_requested'`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_verified_at timestamptz`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_reference text`;
+      await DB`CREATE UNIQUE INDEX IF NOT EXISTS lumenda_orders_receipt_token_hash_uidx ON lumenda_orders(receipt_token_hash)`;
     })().catch(error => { initPromise = null; throw error; });
   }
   return initPromise;
@@ -233,6 +239,7 @@ function limit(req) {
 }
 function serveFile(path, method) {
   if(path==='/admin'||path==='/admin/') path='/admin.html';
+  if(path==='/order'||path==='/order/')path='/order.html';
   if(path==='/')path='/index.html';
   const mime=STATIC_FILES[path];if(!mime)return null;
   try{
@@ -256,11 +263,53 @@ function validImageBytes(data,mime){
   if(mime==='image/jpeg')return a.length>3&&a[0]===255&&a[1]===216&&a[2]===255;
   return mime==='image/webp'&&a.length>12&&Buffer.from(a.subarray(0,4)).toString()==='RIFF'&&Buffer.from(a.subarray(8,12)).toString()==='WEBP';
 }
+
+// Storefront assistant only answers catalogue and policy questions; it never persists chat text.
+const botAttempts=new Map();
+function limitBot(req){
+  const ip=(req.headers.get('cf-connecting-ip')||req.headers.get('x-forwarded-for')||'unknown').split(',')[0].trim().slice(0,80);
+  const now=Date.now(),values=(botAttempts.get(ip)||[]).filter(v=>v>now-900000);
+  if(values.length>=30)return true;
+  values.push(now);botAttempts.set(ip,values);if(botAttempts.size>5000)botAttempts.clear();
+  return false;
+}
+function ruleBotReply(message,lang){
+  const q=message.toLowerCase(),en=lang==='en';
+  if(/4000|4,000|免運|免邮|shipping|運費|运费|ขนส่ง|vận chuyển/i.test(q))
+    return en?'From HK$4,000 of confirmed merchandise, shipping is free. Below this, shipping and destination taxes are quoted separately. Free shipping does not waive taxes.':'經確認商品小計滿 HK$4,000 免運費；未滿要按收件地另報運費及適用稅費。免運唔等於免稅。';
+  if(/price|how much|價錢|价格|售價|giá|ราคา|多少|幾錢|多少钱/i.test(q))
+    return en?'Product prices are not published. Please select Facial Treatment Essence or GenOptics Aura Essence and request a quote.':'神仙水同小燈泡暫時冇公開售價。請揀產品提交查詢，店主會核實庫存同正式價錢。';
+  if(/付款|支付|pay|card|visa|master|paypal|fps|stripe|thanh toán|ชำระ/i.test(q))
+    return en?'Enquiries never charge you. After a seller-confirmed quote, you may receive a Stripe or PayPal payment link in your private order page. Payment must be independently verified.':'提交查詢唔會扣款；店主確認報價後，可能喺私人訂單頁提供 Stripe／PayPal 收款連結。付款必須喺收款平台核實。';
+  if(/order|訂單|订单|落單|đơn hàng|สั่งซื้อ|確認|confirm|进度/i.test(q))
+    return en?'Choose one of the two SK-II products and submit the enquiry form. You will get a private tracking link and instant receipt acknowledgement; final acceptance requires seller confirmation.':'你可揀神仙水或小燈泡提交查詢。提交成功會收到私人訂單進度連結同「已收到」確認；店主先會確認實際訂單。';
+  if(/agent|代理|介紹|介绍|referral|affiliate/i.test(q))
+    return en?'A referrer can share a unique store link. This does not give anyone administrator access.':'代理／介紹人可以分享專屬連結，系統記錄介紹來源，但代理唔會有後台權限。';
+  return en?'I can answer questions about two SK-II products, the HK$4,000 free-shipping rule and orders. Use the enquiry form for an accurate quote.':'你好！我可以答神仙水、小燈泡、HK$4,000 免運同訂單流程。價格、庫存同正式付款由店主確認。';
+}
+function moneyInCents(value,label){
+  const v=String(value??'');
+  if(!/^\d{1,8}(?:\.\d{1,2})?$/.test(v))err(label+'請輸入最多兩位小數嘅港幣金額',400);
+  const n=Math.round(Number(v)*100);
+  if(!Number.isSafeInteger(n)||n<0||n>1000000000)err(label+'金額無效',400);
+  return n;
+}
+function paymentProviderUrl(source){
+  const text=String(source||'').trim();
+  if(!text)return '';
+  if(text.length>1200)err('付款連結過長',400);
+  let u;try{u=new URL(text);}catch{err('付款連結格式無效',400);}
+  if(u.protocol!=='https:'||u.username||u.password||u.port)err('只接受安全 HTTPS 付款連結',400);
+  if(!['checkout.stripe.com','buy.stripe.com','www.paypal.com','paypal.com','paypal.me','www.paypal.me'].includes(u.hostname.toLowerCase()))
+    err('只接受 Stripe 或 PayPal 官方付款連結',400);
+  u.hash='';return u.href;
+}
+
 async function handle(req) {
 
   const path=new URL(req.url).pathname;
   if(path==='/api/health' && req.method==='GET')
-    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'12.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,agentInvitesEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
+    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'13.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,contactsEnabled:!!DB,receiptBotEnabled:!!DB,agentInvitesEnabled:!!DB,botMode:(process.env.XAI_API_KEY&&process.env.XAI_BOT_ENABLED==='true')?'grok':'rules',paymentLinksEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
   if(path==='/api/markets' && req.method==='GET')
     return send({markets:MARKETS,paymentMode:'enquiry_only',paymentsLive:false,shippingPolicy:SHIPPING_POLICY});
 
@@ -299,6 +348,144 @@ async function handle(req) {
       return send({ok:true,media:rows[0]});
     }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
       console.error('Showcase save failed',e?.code||e?.name);return send({ok:false,error:'影片設定暫時未能儲存'},503);}
+  }
+
+
+  // Existing submitted orders are the only source of the phone directory.
+  if(path==='/api/admin/contacts' && req.method==='GET'){
+    if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
+    try{
+      await ensureTable();
+      const params=new URL(req.url).searchParams;
+      const q=clean(params.get('q')||'',36).replace(/[%_]/g,'');
+      const page=Math.min(20000,Math.max(0,Number.parseInt(params.get('page')||'0',10)||0));
+      const term='%'+q+'%';
+      const rows=await DB`WITH grouped AS (
+          SELECT phone,(array_agg(name ORDER BY created_at DESC))[1] AS name,
+            (array_agg(market ORDER BY created_at DESC))[1] AS market,
+            COUNT(*)::int AS order_count,MAX(created_at) AS last_seen_at
+          FROM (
+            SELECT COALESCE(NULLIF(customer->>'phoneIntl',''),NULLIF(customer->>'phone','')) AS phone,
+              customer->>'name' AS name,market,created_at
+            FROM lumenda_orders
+          ) AS entries WHERE phone IS NOT NULL
+          GROUP BY phone
+        ) SELECT phone,name,market,order_count,last_seen_at FROM grouped
+        WHERE phone ILIKE ${term} OR name ILIKE ${term}
+        ORDER BY last_seen_at DESC LIMIT 51 OFFSET ${page*50}`;
+      return send({ok:true,contacts:rows.slice(0,50),hasMore:rows.length>50,page,
+        scope:'submitted_orders_only',marketingConsent:false});
+    }catch(e){console.error('Phonebook unavailable',e?.code||e?.name);
+      return send({ok:false,error:'電話通訊錄暫時未能讀取'},503);}
+  }
+  // A private, unguessable receipt token never includes addresses, names or phone numbers.
+  if(path==='/api/order/lookup' && req.method==='POST'){
+    try{
+      const body=await parseJSON(req),token=String(body.token||'');
+      if(!/^[A-Za-z0-9_-]{43}$/.test(token))err('私人訂單連結無效',400);
+      await ensureTable();
+      const hash=createHash('sha256').update(token).digest('hex');
+      const rows=await DB`SELECT id,market,created_at,status,items,quote,payment_status,payment_verified_at
+        FROM lumenda_orders WHERE receipt_token_hash=${hash} LIMIT 1`;
+      if(!rows.length)return send({ok:false,error:'搵唔到呢張訂單'},404);
+      const o=rows[0];
+      return send({ok:true,order:{id:o.id,market:o.market,createdAt:o.created_at,
+        status:o.status,items:o.items,quote:o.quote,paymentStatus:o.payment_status,
+        paidVerified:!!o.payment_verified_at},
+        botMessage:'已收到訂單查詢，店主稍後核實商品、運費、稅項同正式報價。'});
+    }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
+      console.error('Receipt lookup failed',e?.code||e?.name);
+      return send({ok:false,error:'訂單進度暫時無法顯示'},503);}
+  }
+
+
+  // Owner enters actual quote; subtotal controls HK$4,000 free-shipping eligibility.
+  // Stripe / PayPal links are owner-issued links only; redirects do not confirm payment.
+  if(path.startsWith('/api/admin/orders/')&&path.endsWith('/quote')&&req.method==='POST'){
+    if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
+    try{
+      const id=path.slice('/api/admin/orders/'.length,-'/quote'.length);
+      if(!/^LMD-[0-9]{8}-[A-Fa-f0-9]{10}$/.test(id))err('訂單編號無效',400);
+      const body=await parseJSON(req);
+      const subtotal=moneyInCents(body.subtotalHkd,'商品小計');
+      const tax=moneyInCents(body.taxHkd,'適用稅費');
+      const shipping=subtotal>=400000?0:moneyInCents(body.shippingHkd,'運費');
+      if(subtotal<100)err('商品小計至少 HK$1',400);
+      const total=subtotal+tax+shipping;
+      if(total>1000000000)err('報價總額過高',400);
+      const paymentLink=paymentProviderUrl(body.paymentLink||'');
+      const quote={currency:'HKD',subtotalHkd:subtotal/100,shippingHkd:shipping/100,
+        taxHkd:tax/100,totalHkd:total/100,freeShipping:subtotal>=400000,
+        note:clean(body.note,280),paymentLink,quotedAt:new Date().toISOString()};
+      await ensureTable();
+      const updated=await DB`UPDATE lumenda_orders SET quote=${JSON.stringify(quote)}::jsonb,
+        payment_status=${paymentLink?'link_ready':'not_requested'},
+        payment_verified_at=NULL,payment_reference=NULL
+        WHERE id=${id} AND status<>'cancelled'
+        RETURNING id,quote,payment_status`;
+      return send({ok:updated.length>0,quote:updated[0]?.quote,
+        paymentStatus:updated[0]?.payment_status},updated.length?200:404);
+    }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
+      console.error('Seller quote unavailable',e?.code||e?.name);
+      return send({ok:false,error:'正式報價暫時未能保存'},503);}
+  }
+  if(path.startsWith('/api/admin/orders/')&&path.endsWith('/payment')&&req.method==='POST'){
+    if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
+    try{
+      const id=path.slice('/api/admin/orders/'.length,-'/payment'.length);
+      if(!/^LMD-[0-9]{8}-[A-Fa-f0-9]{10}$/.test(id))err('訂單編號無效',400);
+      const body=await parseJSON(req);
+      if(body.confirmed!==true)err('請先喺收款服務商後台核實入帳',400);
+      const ref=clean(body.transactionReference,100);
+      if(ref.length<6)err('請提供真實嘅付款交易參考編號',400);
+      await ensureTable();
+      const rows=await DB`UPDATE lumenda_orders SET payment_status='owner_verified',
+        payment_verified_at=now(),payment_reference=${ref}
+        WHERE id=${id} AND quote IS NOT NULL AND payment_status='link_ready'
+        RETURNING id,payment_status`;
+      return send({ok:rows.length>0,paymentStatus:rows[0]?.payment_status},rows.length?200:409);
+    }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
+      return send({ok:false,error:'付款核實暫時失敗'},503);}
+  }
+
+
+  // Website chat assistant. Grok API requires owner billing/API key, disabled by default.
+  if(path==='/api/bot/reply' && req.method==='POST'){
+    if(limitBot(req))return send({ok:false,error:'提問太密，請稍後再試'},429);
+    try{
+      const body=await parseJSON(req);
+      const message=clean(body.message,500),lang=clean(body.language,10);
+      if(message.length<2||message.length>350)err('每次請輸入 2 至 350 字',400);
+      if(!['zh-Hant','zh-Hans','en','ms','vi','th'].includes(lang))err('語言選項無效',400);
+      if(/(?:^|[^\d])\d[\d \-]{7,}\d|[^\s@]+@[^\s@]+\.[^\s@]+/.test(message))
+        return send({ok:true,mode:'rules',
+          reply:'為保障私隱，請唔好喺聊天輸入電話、電郵、卡號、密碼或地址。請透過正式訂單表格提交聯絡資料。',
+          requiresHuman:true});
+      const fallback=ruleBotReply(message,lang);
+      if(process.env.XAI_API_KEY&&process.env.XAI_BOT_ENABLED==='true'){
+        try{
+          const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),9000);
+          let result;
+          try{
+            const upstream=await fetch('https://api.x.ai/v1/chat/completions',{
+              method:'POST',
+              headers:{Authorization:'Bearer '+process.env.XAI_API_KEY,'Content-Type':'application/json'},
+              signal:controller.signal,
+              body:JSON.stringify({model:process.env.XAI_MODEL||'grok-4.3',max_tokens:220,
+                messages:[
+                  {role:'system',content:'You are the concise multilingual FAQ agent of independent beauty retailer LUMENDA SELECT. Reply in '+lang+'. Only SK-II Facial Treatment Essence 230ml and GenOptics Aura Essence 50ml. Not officially affiliated with SK-II or P&G. Never invent prices, inventory, shipping charges or destination tax amounts. Merchandise subtotal HK$4,000 or more gets free shipping but NOT waived taxes. Below HK$4,000 shipping and applicable taxes require the seller quote. All enquiries must be submitted in the on-site form. Never say an order, payment or stock is confirmed. Do not request or disclose private contact/payment details. Never provide unverified external payment links. Answer under 80 words.'},
+                  {role:'user',content:message}
+                ]})
+            });
+            if(!upstream.ok)throw Error('AI endpoint failed');
+            const json=await upstream.json();
+            result=String(json.choices?.[0]?.message?.content||'').slice(0,900);
+          }finally{clearTimeout(timeout);}
+          if(result)return send({ok:true,mode:'grok',reply:result,requiresHuman:true});
+        }catch(e){console.warn('Optional Grok temporarily unavailable',e?.name||'Error');}
+      }
+      return send({ok:true,mode:'rules',reply:fallback,requiresHuman:true});
+    }catch(e){return send({ok:false,error:e.status?e.message:'聊天服務暫時未能使用'},e.status||503);}
   }
 
   if(path==='/api/admin/agents' && req.method==='GET'){
@@ -371,9 +558,13 @@ async function handle(req) {
       const id='LMD-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+randomBytes(5).toString('hex').toUpperCase();
       const customer=JSON.stringify(data.customer),items=JSON.stringify(data.items);
       const referralCode=await activeReferralCode(data.referralCandidate);
-      await DB`INSERT INTO lumenda_orders(id,status,market,customer,items,note,referral_code)
-        VALUES (${id},${'pending_quote'},${data.market},${customer}::jsonb,${items}::jsonb,${data.note},${referralCode})`;
-      return send({ok:true,orderId:id,status:'pending_quote',paymentRequired:false,referralTracked:!!referralCode},201);
+      const receiptToken=randomBytes(32).toString('base64url');
+      const receiptHash=createHash('sha256').update(receiptToken).digest('hex');
+      await DB`INSERT INTO lumenda_orders(id,status,market,customer,items,note,referral_code,receipt_token_hash)
+        VALUES (${id},${'pending_quote'},${data.market},${customer}::jsonb,${items}::jsonb,${data.note},${referralCode},${receiptHash})`;
+      return send({ok:true,orderId:id,status:'pending_quote',paymentRequired:false,
+        botAcknowledgement:'已收到你的訂單查詢。店主稍後核實貨品、運費、稅費同報價。提交唔代表已付款。',
+        receiptToken,referralTracked:!!referralCode},201);
     } catch(e) {
       if(e.status) return send({ok:false,error:e.message},e.status);
       console.error('Order save failed',e?.message);return send({ok:false,error:'訂單暫時未能儲存，請稍後再試'},503);
@@ -381,7 +572,7 @@ async function handle(req) {
   }
   if(path==='/api/orders' && req.method==='GET') {
     if(!validAdmin(req)||!validAdminOrigin(req)) return send({ok:false,error:'Unauthorized'},401);
-    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders});}
+    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,payment_status,payment_verified_at,payment_reference FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders});}
     catch(e){console.error('Order fetch failed',e?.message);return send({ok:false,error:'Database unavailable'},503);}
   }
   if(path.startsWith('/api/orders/') && req.method==='PATCH') {

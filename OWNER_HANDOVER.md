@@ -11,6 +11,27 @@ Updated 2026-10-12. No passwords, database URLs, session signing keys or custome
 - Render workspace: My Workspace; region: Singapore
 - GitHub repository visibility: PUBLIC. Do not commit secrets or private order data.
 
+
+## v13 — Prices, contact memory, customer bot and hosted payment links
+- **神仙水 Facial Treatment Essence 230ml** seller base price: CNY ¥800 per bottle; displayed USD reference **US$119.54** using 2026-10-12 reference exchange rate 1 CNY ≈ 0.149429 USD. This is an indicative conversion, excluding freight and taxes, not a live daily FX guarantee.
+- **小燈泡 GenOptics Aura Essence 50ml**: price still requires seller confirmation; never invent one.
+- **Free shipping**: only if seller-confirmed merchandise subtotal reaches **HK$4,000**, regardless of the displayed USD reference. Destination taxes are separately entered from the real jurisdiction; free shipping does not waive tax.
+- **Owner phone memory** in `/admin`: `GET /api/admin/contacts` returns a searchable, paginated address book of phone numbers from **submitted, consented orders only** (deduplicated by international phone). Never store abandoned form keystrokes; do not reuse for unsolicited campaigns without separate permission. Deleting an order also affects derived contact history.
+- **Instant order bot acknowledgement**: after submitting an enquiry, customer receives an order ID and secret URL `/order#<token>`. Token is generated randomly, a SHA-256 digest is stored with the order, and customers can view only non-personal data (order ID, two product SKUs, quote and payment status). Preserve the private link; treat it as a bearer credential.
+- **Website customer FAQ bot**: `POST /api/bot/reply` accepts short customer questions. Safe rule-based responder is ON by default, with no stored chat transcript. The owner may separately enable xAI/Grok via the **private** Render environment variables `XAI_API_KEY`, `XAI_BOT_ENABLED=true`, and optional `XAI_MODEL` only after creating/funding a permitted xAI API account. A Grok app or Grok Bot subscription is **not automatically an xAI API key**. API availability, pricing and permissions must be verified with the provider.
+- **HKD quotation**: owner-only `POST /api/admin/orders/{id}/quote` stores actual merchandise subtotal, shipping, taxes, note and optional merchant-issued Stripe/PayPal HTTPS payment URL. Shipping becomes HK$0 when subtotal >= HK$4,000; taxes are never waived automatically. Quote is intentionally NOT automatically computed from the CNY/USD reference because FX/tax/shipping need seller validation.
+- **Third-party hosted checkout**: owner supplies a real merchant-generated Stripe or PayPal payment link, shown only on the customer's private order status page. There is **no merchant connection, payment initiation API, card capture or payment webhook yet**. `paymentsLive:false` remains correct while merchant credentials are not connected; NEVER call a payment completed merely because the customer opens/returns from a link.
+- **Owner manual transaction verification**: `POST /api/admin/orders/{id}/payment` requires owner auth, explicit confirmation and a real transaction reference from the merchant dashboard. This is bookkeeping, **not** processor-verified automation. No refund automation or money movement is enabled.
+- These features add nullable order columns. They **do not drop orders or overwrite original customer JSON**. New video/referral tables are unaffected.
+
+### Required next operational tasks (before live paid orders)
+1. Rotate the temporary admin password and session secret privately; the old password has appeared in conversation history.
+2. Renew or replace the temporary Render PostgreSQL (previous expiry displayed as 2026-11-11), preserve backups in a secure account. The current publicly downloadable GitHub source ZIP contains no customer records and is not a DB backup.
+3. Obtain a verified Stripe/PayPal merchant account and configure legitimate hosted checkout links, then test real webhooks/processor verification in the provider's sandbox before enabling fully automatic payment recognition.
+4. If choosing Grok, configure your own xAI API account and set keys only via Render Environment. Explicitly approve usage/billing limits; do not place tokens into GitHub.
+5. Review data retention/consent, cross-border shipping/import-tax compliance and earlier security audit findings. No customer telephone may be ingested from unsubmitted form fields.
+
+
 ## Owner identity and configuration
 - Admin username (configuration): `lumenda_owner`.
 - Admin password: NOT included. Change it privately in Render's Environment panel; an earlier temporary value was shared in a chat and needs rotation.
