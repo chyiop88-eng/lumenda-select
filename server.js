@@ -1,5 +1,6 @@
 import postgres from 'postgres';
 import { calculateCart } from './lib/cart-pricing.mjs';
+import {buildSellerQuote,checkoutAmountCents,stripeCheckoutParams,quoteHash,paidStripeSessionValid,verifyStripeEvent} from './lib/checkout-payments.mjs';
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { readFileSync } from 'node:fs';
@@ -16,6 +17,28 @@ const STATIC_FILES={
 };
 const MARKETS = JSON.parse(readFileSync(join(ROOT, 'config', 'markets.json'), 'utf8'));
 const PRODUCTS = JSON.parse(readFileSync(join(ROOT, 'config', 'products.json'), 'utf8'));
+const STRIPE_MODE=process.env.STRIPE_MODE==='live'?'live':'test';
+function stripeReady(){
+  const key=String(process.env.STRIPE_SECRET_KEY||'');
+  const base=String(process.env.PUBLIC_SITE_URL||'');
+  let validBase=false;
+  try {
+    const u=new URL(base);
+    validBase=(u.protocol==='https:'||(process.env.NODE_ENV==='test'&&u.protocol==='http:'&&['localhost','127.0.0.1'].includes(u.hostname)))&&u.pathname==='/'&&!u.search&&!u.hash;
+  } catch {}
+  return !!DB&&process.env.STRIPE_CHECKOUT_ENABLED==='true' &&
+    key.startsWith(STRIPE_MODE==='live'?'sk_live_':'sk_test_') &&
+    String(process.env.STRIPE_WEBHOOK_SECRET||'').startsWith('whsec_') &&
+    validBase &&(STRIPE_MODE!=='live'||process.env.STRIPE_LIVE_APPROVED==='true');
+}
+function stripeApiBase(){
+  if(process.env.NODE_ENV==='test'&&process.env.STRIPE_MOCK_BASE_URL){
+    const url=new URL(process.env.STRIPE_MOCK_BASE_URL);
+    if(!['localhost','127.0.0.1'].includes(url.hostname))throw Error('Test Stripe endpoint must be loopback');
+    return url.origin;
+  }
+  return 'https://api.stripe.com';
+}
 const SHIPPING_POLICY = Object.freeze({ currency: 'HKD', freeShippingThresholdHKD: 4000, qualifyingAmount: 'seller_confirmed_merchandise_subtotal', shippingBelowThreshold: 'quote_by_destination', applicableTaxes: 'quoted_separately', eligibility: 'pending_quote' });
 const HD_MEDIA = {
   '/campaign-facial-treatment-essence-hd-v7.webp': 'hd-art/fte-q94.webp',
@@ -54,6 +77,13 @@ function ensureTable() {
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS receipt_token_hash text`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS quote jsonb`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS cart_snapshot jsonb`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS stripe_session_id text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS stripe_checkout_url text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS stripe_checkout_expires_at timestamptz`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS stripe_quote_hash text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS stripe_checkout_lock text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS stripe_checkout_lock_at timestamptz`;
+      await DB`CREATE UNIQUE INDEX IF NOT EXISTS lumenda_stripe_session_uidx ON lumenda_orders(stripe_session_id)`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_status text NOT NULL DEFAULT 'not_requested'`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_verified_at timestamptz`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS payment_reference text`;
@@ -320,13 +350,13 @@ async function handle(req) {
 
   const path=new URL(req.url).pathname;
   if(path==='/api/health' && req.method==='GET')
-    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'13.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,contactsEnabled:!!DB,receiptBotEnabled:!!DB,agentInvitesEnabled:!!DB,botMode:(process.env.XAI_API_KEY&&process.env.XAI_BOT_ENABLED==='true')?'grok':'rules',paymentLinksEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
+    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'13.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,contactsEnabled:!!DB,receiptBotEnabled:!!DB,agentInvitesEnabled:!!DB,botMode:(process.env.XAI_API_KEY&&process.env.XAI_BOT_ENABLED==='true')?'grok':'rules',paymentLinksEnabled:!!DB,stripeCheckoutEnabled:stripeReady(),stripeMode:stripeReady()?STRIPE_MODE:null,paymentsLive:stripeReady()&&STRIPE_MODE==='live',shippingMarkets:Object.keys(MARKETS)});
   if(path==='/api/cart/estimate' && req.method==='POST'){
     try {const body=await parseJSON(req);return send({ok:true,cart:calculateCart(body.items,PRODUCTS,4000)});}
     catch(e){return send({ok:false,error:e.message||'購物車無效'},400);}
   }
   if(path==='/api/markets' && req.method==='GET')
-    return send({markets:MARKETS,paymentMode:'enquiry_only',paymentsLive:false,shippingPolicy:SHIPPING_POLICY});
+    return send({markets:MARKETS,paymentMode:'seller_quoted',stripeCheckoutEnabled:stripeReady(),paymentsLive:stripeReady()&&STRIPE_MODE==='live',shippingPolicy:SHIPPING_POLICY});
 
   if(path==='/api/showcase' && req.method==='GET'){
     const slots=emptyShowcase();
@@ -410,7 +440,8 @@ async function handle(req) {
       const o=rows[0];
       return send({ok:true,order:{id:o.id,market:o.market,createdAt:o.created_at,
         status:o.status,items:unpackJsonValue(o.items,[]),quote:unpackJsonValue(o.quote,null),paymentStatus:o.payment_status,
-        paidVerified:!!o.payment_verified_at},
+        paidVerified:!!o.payment_verified_at,
+        stripeCheckoutAvailable:stripeReady()&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled'},
         botMessage:'已收到訂單查詢，店主稍後核實商品、運費、稅項同正式報價。'});
     }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
       console.error('Receipt lookup failed',e?.code||e?.name);
@@ -418,36 +449,35 @@ async function handle(req) {
   }
 
 
-  // Owner enters actual quote; subtotal controls HK$4,000 free-shipping eligibility.
-  // Stripe / PayPal links are owner-issued links only; redirects do not confirm payment.
+  // Owner quote must match the server's SKU prices and actual quantities.
+  // Unknown products require an explicit seller-entered UNIT price for each unpriced SKU.
   if(path.startsWith('/api/admin/orders/')&&path.endsWith('/quote')&&req.method==='POST'){
     if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
     try{
       const id=path.slice('/api/admin/orders/'.length,-'/quote'.length);
       if(!/^LMD-[0-9]{8}-[A-Fa-f0-9]{10}$/.test(id))err('訂單編號無效',400);
       const body=await parseJSON(req);
-      const subtotal=moneyInCents(body.subtotalHkd,'商品小計');
-      const tax=moneyInCents(body.taxHkd,'適用稅費');
-      const shipping=subtotal>=400000?0:moneyInCents(body.shippingHkd,'運費');
-      if(subtotal<100)err('商品小計至少 HK$1',400);
-      const total=subtotal+tax+shipping;
-      if(total>1000000000)err('報價總額過高',400);
-      const paymentLink=paymentProviderUrl(body.paymentLink||'');
-      const quote={currency:'HKD',subtotalHkd:subtotal/100,shippingHkd:shipping/100,
-        taxHkd:tax/100,totalHkd:total/100,freeShipping:subtotal>=400000,
-        note:clean(body.note,280),paymentLink,quotedAt:new Date().toISOString()};
       await ensureTable();
+      const existing=await DB`SELECT items FROM lumenda_orders WHERE id=${id} LIMIT 1`;
+      if(!existing.length)err('訂單不存在',404);
+      const cart=calculateCart(unpackJsonValue(existing[0].items,[]),PRODUCTS,4000);
+      const breakdown=buildSellerQuote(cart,body);
+      const paymentLink=paymentProviderUrl(body.paymentLink||'');
+      const quote={...breakdown,note:clean(body.note,280),paymentLink,quotedAt:new Date().toISOString()};
       const updated=await DB`UPDATE lumenda_orders SET quote=${DB.json(quote)}::jsonb,
-        payment_status=${paymentLink?'link_ready':'not_requested'},
-        payment_verified_at=NULL,payment_reference=NULL
-        WHERE id=${id} AND status<>'cancelled'
+        payment_status=${paymentLink?'link_ready':'not_requested'},payment_verified_at=NULL,
+        payment_reference=NULL
+        WHERE id=${id} AND status<>'cancelled' AND payment_verified_at IS NULL
+          AND stripe_session_id IS NULL
+          AND (stripe_checkout_lock IS NULL OR stripe_checkout_lock_at < now()-interval '2 minutes')
         RETURNING id,quote,payment_status`;
-      return send({ok:updated.length>0,quote:unpackJsonValue(updated[0]?.quote,null),
-        paymentStatus:updated[0]?.payment_status},updated.length?200:404);
-    }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
+      if(!updated.length)err('訂單已付款或結帳進行中，不能修改報價，請轉人工核對',409);
+      return send({ok:true,quote:unpackJsonValue(updated[0].quote,null),paymentStatus:updated[0].payment_status});
+    }catch(e){if(e.status||e instanceof RangeError)return send({ok:false,error:e.message},e.status||400);
       console.error('Seller quote unavailable',e?.code||e?.name);
       return send({ok:false,error:'正式報價暫時未能保存'},503);}
   }
+
   if(path.startsWith('/api/admin/orders/')&&path.endsWith('/payment')&&req.method==='POST'){
     if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
     try{
@@ -467,6 +497,131 @@ async function handle(req) {
       return send({ok:false,error:'付款核實暫時失敗'},503);}
   }
 
+
+  // Card collection occurs ONLY at the PSP-hosted Stripe Checkout page.
+  // A secret receipt token authorizes the request, not an order ID or client prices.
+  if(path==='/api/order/checkout'&&req.method==='POST'){
+    if(!stripeReady())return send({ok:false,error:'正式信用卡結帳暫未啟用；請向賣家查詢'},503);
+    if(limit(req))return send({ok:false,error:'請稍後再試'},429);
+    let locked=null;
+    try{
+      const input=await parseJSON(req),token=String(input.token||'');
+      if(!/^[A-Za-z0-9_-]{43}$/.test(token))err('私人訂單連結無效',400);
+      await ensureTable();
+      const hash=createHash('sha256').update(token).digest('hex');
+      const lock=randomBytes(12).toString('hex');
+      const selection=await DB.begin(async tx=>{
+        const rows=await tx`SELECT id,quote,status,payment_verified_at,stripe_session_id,
+          stripe_checkout_url,stripe_checkout_expires_at,stripe_quote_hash,
+          stripe_checkout_lock,stripe_checkout_lock_at
+          FROM lumenda_orders WHERE receipt_token_hash=${hash} FOR UPDATE`;
+        if(!rows.length)err('訂單不存在',404);
+        const o=rows[0],q=unpackJsonValue(o.quote,null);
+        if(o.status==='cancelled'||o.payment_verified_at)err('訂單已結束或付款已核實',409);
+        if(!q||q.paymentLink)err('尚未有可使用嘅 Stripe 正式報價，請聯絡賣家',409);
+        const built=stripeCheckoutParams({orderId:o.id,quote:q,publicSiteUrl:process.env.PUBLIC_SITE_URL});
+        if(o.stripe_session_id && o.stripe_quote_hash===built.fingerprint &&
+           o.stripe_checkout_expires_at && new Date(o.stripe_checkout_expires_at).getTime()>Date.now()+60000){
+          const u=new URL(o.stripe_checkout_url);
+          if(u.protocol!=='https:'||u.hostname!=='checkout.stripe.com')err('先前付款連結無效',409);
+          return {existing:true,url:u.href};
+        }
+        if(o.stripe_checkout_lock&&o.stripe_checkout_lock_at&&
+           Date.now()-new Date(o.stripe_checkout_lock_at).getTime()<120000)err('付款頁正準備中，請勿重複提交',409);
+        await tx`UPDATE lumenda_orders SET stripe_checkout_lock=${lock},stripe_checkout_lock_at=now()
+          WHERE id=${o.id}`;
+        return {id:o.id,quote:q,lock,...built};
+      });
+      if(selection.existing)return send({ok:true,url:selection.url,provider:'stripe',reused:true});
+      locked=selection;
+      const response=await fetch(stripeApiBase()+'/v1/checkout/sessions',{
+        method:'POST',headers:{
+          Authorization:'Bearer '+process.env.STRIPE_SECRET_KEY,
+          'Content-Type':'application/x-www-form-urlencoded',
+          'Idempotency-Key':'lumenda-'+selection.id+'-'+selection.fingerprint.slice(0,20)+'-'+new Date().toISOString().slice(0,10)
+        },body:selection.params,signal:AbortSignal.timeout(15000)
+      });
+      if(!response.ok)throw Error('Stripe gateway returned HTTP '+response.status);
+      const session=await response.json();
+      const u=new URL(session.url);
+      if(u.protocol!=='https:'||u.hostname!=='checkout.stripe.com'||
+         !/^cs_(test_|live_)/.test(session.id||'')||
+         session.client_reference_id!==selection.id||session.mode!=='payment'||
+         session.currency!=='hkd'||session.amount_total!==selection.amount||
+         session.metadata?.quote_hash!==selection.fingerprint||
+         session.livemode!==(STRIPE_MODE==='live')||session.status!=='open'||
+         !Number.isInteger(session.expires_at)||session.expires_at*1000<Date.now()+60000)
+        throw Error('Stripe checkout response did not match this order');
+      const saved=await DB`UPDATE lumenda_orders SET stripe_session_id=${session.id},
+        stripe_checkout_url=${u.href},stripe_quote_hash=${selection.fingerprint},
+        stripe_checkout_expires_at=${new Date(session.expires_at*1000).toISOString()},
+        stripe_checkout_lock=NULL,stripe_checkout_lock_at=NULL,payment_status='checkout_ready'
+        WHERE id=${selection.id} AND stripe_checkout_lock=${selection.lock}
+          AND payment_verified_at IS NULL
+          AND quote->>'quotedAt'=${selection.quote.quotedAt}
+        RETURNING id`;
+      if(!saved.length)err('結帳過程資料已改變，請聯絡賣家',409);
+      return send({ok:true,url:u.href,provider:'stripe',mode:STRIPE_MODE});
+    }catch(e){
+      if(locked?.id&&locked?.lock){
+        try{await DB`UPDATE lumenda_orders SET stripe_checkout_lock=NULL,stripe_checkout_lock_at=NULL
+          WHERE id=${locked.id} AND stripe_checkout_lock=${locked.lock}`;}catch{}
+      }
+      console.warn('Checkout issue',e?.status||e?.name||'error');
+      return send({ok:false,error:e.status?e.message:'付款頁目前未能建立，請稍後再試'},e.status||502);
+    }
+  }
+
+  // Stripe signs the exact raw bytes. A return URL or screenshot NEVER confirms payment.
+  if(path==='/api/payments/stripe/webhook'&&req.method==='POST'){
+    if(!stripeReady())return send({ok:false,error:'Webhook unavailable'},503);
+    try{
+      const raw=await req.text();
+      const event=verifyStripeEvent(raw,req.headers.get('stripe-signature'),
+        process.env.STRIPE_WEBHOOK_SECRET);
+      if(!['checkout.session.completed','checkout.session.async_payment_succeeded',
+            'checkout.session.async_payment_failed','checkout.session.expired'].includes(event.type))
+        return send({ok:true,ignored:true});
+      const session=event.data.object;
+      if(session.object!=='checkout.session'||!/^cs_(test_|live_)/.test(session.id||''))
+        err('Invalid payment event',400);
+      await ensureTable();
+      const found=await DB`SELECT id,quote,stripe_quote_hash,stripe_session_id,payment_status,
+        payment_verified_at,status FROM lumenda_orders WHERE stripe_session_id=${session.id} LIMIT 1`;
+      if(!found.length)return send({ok:true,ignored:true});
+      const o=found[0],quote=unpackJsonValue(o.quote,null);
+      if(!quote||o.stripe_quote_hash!==quoteHash(o.id,quote)||
+         session.client_reference_id!==o.id||session.metadata?.quote_hash!==o.stripe_quote_hash||
+         session.livemode!==(STRIPE_MODE==='live'))
+        err('Payment quote mismatch - requires reconciliation',409);
+      if(event.type==='checkout.session.completed'||event.type==='checkout.session.async_payment_succeeded'){
+        if(session.payment_status!=='paid')return send({ok:true,awaitingPayment:true});
+        if(!paidStripeSessionValid(session,{orderId:o.id,quote,
+          sessionId:o.stripe_session_id,mode:STRIPE_MODE}))
+          err('Payment amount mismatch - requires reconciliation',409);
+        if(o.payment_verified_at)return send({ok:true,duplicate:true});
+        const reference=typeof session.payment_intent==='string'?session.payment_intent:session.id;
+        const updated=await DB`UPDATE lumenda_orders SET payment_status='stripe_paid',
+          payment_verified_at=now(),payment_reference=${reference}
+          WHERE id=${o.id} AND stripe_session_id=${session.id}
+            AND stripe_quote_hash=${o.stripe_quote_hash} AND payment_verified_at IS NULL
+            AND status<>'cancelled' RETURNING id`;
+        if(!updated.length)err('Order payment needs manual review',409);
+        return send({ok:true,verified:true});
+      }
+      if(!o.payment_verified_at){
+        const newStatus=event.type==='checkout.session.expired'?'checkout_expired':'checkout_failed';
+        await DB`UPDATE lumenda_orders SET payment_status=${newStatus}
+          WHERE id=${o.id} AND stripe_session_id=${session.id}
+            AND payment_verified_at IS NULL AND payment_status='checkout_ready'`;
+      }
+      return send({ok:true,updated:true});
+    }catch(e){
+      if(e.status)return send({ok:false,error:e.message},e.status);
+      console.warn('Stripe webhook rejected',e?.name||'Error');
+      return send({ok:false,error:'Webhook signature or payload invalid'},400);
+    }
+  }
 
   // Website chat assistant. Grok API requires owner billing/API key, disabled by default.
   if(path==='/api/bot/reply' && req.method==='POST'){
