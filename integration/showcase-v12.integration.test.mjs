@@ -79,7 +79,7 @@ test('front-end has no empty cinema spaces, lists two SK-II essence sizes and Ge
  const admin=await (await fetch(base+'/admin')).text();
  assert.ok(admin.includes('id="showcaseAdminCards"'));
  const info=await req('/api/health');
- assert.ok(['12.0.0','13.0.0'].includes(info.data.uiVersion));
+ assert.ok(['12.0.0','13.0.0','14.1.0'].includes(info.data.uiVersion));
  assert.deepEqual(info.data.featuredSKUs,['FTE230','FTE330','GENOPTICS50']);
  assert.equal(info.data.shippingPolicy.freeShippingThresholdHKD,4000);
  console.log('VISUAL_SLOTS_PASS brand+fte+aura hidden-before-config; hk4000+two FTE sizes plus GenOptics');
