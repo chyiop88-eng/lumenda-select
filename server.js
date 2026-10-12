@@ -336,11 +336,11 @@ function ruleBotReply(message,lang){
   if(/4000|4,000|免運|免邮|shipping|運費|运费|ขนส่ง|vận chuyển/i.test(q))
     return en?'From HK$4,000 of confirmed merchandise, shipping is free. Below this, shipping and destination taxes are quoted separately. Free shipping does not waive taxes.':'經確認商品小計滿 HK$4,000 免運費；未滿要按收件地另報運費及適用稅費。免運唔等於免稅。';
   if(/price|how much|價錢|价格|售價|giá|ราคา|多少|幾錢|多少钱/i.test(q))
-    return en?'Facial Treatment Essence 230ml is HK$899 per bottle (about US$114.55 at the 2026-10-12 reference rate), before shipping and applicable taxes. GenOptics Aura Essence still requires a seller quote.':'神仙水 230ml 每支 HK$899（2026-10-12 參考匯率約 US$114.55），未計運費同適用稅費。小燈泡仍然待報價。';
+    return en?'Facial Treatment Essence 230ml: CNY 750; 330ml: CNY 990. HKD settlement requires a seller-approved FX rate, shipping and tax quote. GenOptics requires a quote.':'神仙水 230ml 人民幣 ¥750；330ml 人民幣 ¥990。港幣收款金額須先經賣家核對匯率、運費同稅項；小燈泡仍待報價。';
   if(/付款|支付|pay|card|visa|master|paypal|fps|stripe|thanh toán|ชำระ/i.test(q))
     return en?'Submitting an order enquiry never charges you. After the seller confirms a HKD quote, supported PayPal checkout is available only when the merchant enables it; FPS and USDT need owner verification.':'提交訂單查詢唔會扣款。店主確認港幣報價後，如商戶已啟用 PayPal，私人訂單頁可使用 PayPal 結帳；FPS 或 USDT 必須由店主核實真實入帳。';
   if(/order|訂單|订单|落單|đơn hàng|สั่งซื้อ|確認|confirm|进度/i.test(q))
-    return en?'Choose one of the two SK-II products and submit the enquiry form. You will get a private tracking link and instant receipt acknowledgement; final acceptance requires seller confirmation.':'你可揀神仙水或小燈泡提交查詢。提交成功會收到私人訂單進度連結同「已收到」確認；店主先會確認實際訂單。';
+    return en?'Choose SK-II Facial Treatment Essence 230ml or 330ml, or GenOptics. A private order link will be provided; final payment needs a seller-approved HKD quote.':'可選神仙水 230ml／330ml 或小燈泡提交訂單查詢，系統提供私人進度連結；店主確認港幣結帳價後再安排付款。';
   if(/agent|代理|介紹|介绍|referral|affiliate/i.test(q))
     return en?'A referrer can share a unique store link. This does not give anyone administrator access.':'代理／介紹人可以分享專屬連結，系統記錄介紹來源，但代理唔會有後台權限。';
   return en?'I can answer questions about two SK-II products, the HK$4,000 free-shipping rule and orders. Use the enquiry form for an accurate quote.':'你好！我可以答神仙水、小燈泡、HK$4,000 免運同訂單流程。價格、庫存同正式付款由店主確認。';
@@ -367,7 +367,7 @@ async function handle(req) {
 
   const path=new URL(req.url).pathname;
   if(path==='/api/health' && req.method==='GET')
-    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'13.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,contactsEnabled:!!DB,receiptBotEnabled:!!DB,agentInvitesEnabled:!!DB,botMode:(process.env.XAI_API_KEY&&process.env.XAI_BOT_ENABLED==='true')?'grok':'rules',paymentLinksEnabled:!!DB,stripeCheckoutEnabled:stripeReady(),stripeMode:stripeReady()?STRIPE_MODE:null,paypalCheckoutEnabled:PAYPAL.available(),paypalMode:PAYPAL.available()?PAYPAL.mode:null,paymentsLive:stripeReady()&&STRIPE_MODE==='live',shippingMarkets:Object.keys(MARKETS)});
+    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'14.1.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,contactsEnabled:!!DB,receiptBotEnabled:!!DB,agentInvitesEnabled:!!DB,botMode:(process.env.XAI_API_KEY&&process.env.XAI_BOT_ENABLED==='true')?'grok':'rules',paymentLinksEnabled:!!DB,stripeCheckoutEnabled:stripeReady(),stripeMode:stripeReady()?STRIPE_MODE:null,paypalCheckoutEnabled:PAYPAL.available(),paypalMode:PAYPAL.available()?PAYPAL.mode:null,paymentsLive:stripeReady()&&STRIPE_MODE==='live',shippingMarkets:Object.keys(MARKETS)});
   if(path==='/api/cart/estimate' && req.method==='POST'){
     try {const body=await parseJSON(req);return send({ok:true,cart:calculateCart(body.items,PRODUCTS,4000)});}
     catch(e){return send({ok:false,error:e.message||'購物車無效'},400);}
@@ -451,13 +451,14 @@ async function handle(req) {
       if(!/^[A-Za-z0-9_-]{43}$/.test(token))err('私人訂單連結無效',400);
       await ensureTable();
       const hash=createHash('sha256').update(token).digest('hex');
-      const rows=await DB`SELECT id,market,created_at,status,items,quote,payment_status,payment_verified_at,
+      const rows=await DB`SELECT id,market,created_at,status,items,cart_snapshot,quote,payment_status,payment_verified_at,
         paypal_order_id,customer,stripe_session_id
         FROM lumenda_orders WHERE receipt_token_hash=${hash} LIMIT 1`;
       if(!rows.length)return send({ok:false,error:'搵唔到呢張訂單'},404);
       const o=rows[0];
       return send({ok:true,order:{id:o.id,market:o.market,createdAt:o.created_at,
-        status:o.status,items:unpackJsonValue(o.items,[]),quote:unpackJsonValue(o.quote,null),paymentStatus:o.payment_status,
+        status:o.status,items:unpackJsonValue(o.items,[]),
+        cart:unpackJsonValue(o.cart_snapshot,null),quote:unpackJsonValue(o.quote,null),paymentStatus:o.payment_status,
         paidVerified:!!o.payment_verified_at,
         paymentPreference:unpackJsonValue(o.customer,{})?.paymentMethod||'',
         paypalCheckoutAvailable:PAYPAL.available()&&unpackJsonValue(o.customer,{})?.paymentMethod==='PAYPAL'&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled'&&!o.stripe_session_id,
@@ -480,9 +481,15 @@ async function handle(req) {
       if(!/^LMD-[0-9]{8}-[A-Fa-f0-9]{10}$/.test(id))err('訂單編號無效',400);
       const body=await parseJSON(req);
       await ensureTable();
-      const existing=await DB`SELECT items FROM lumenda_orders WHERE id=${id} LIMIT 1`;
+      const existing=await DB`SELECT items,cart_snapshot FROM lumenda_orders WHERE id=${id} LIMIT 1`;
       if(!existing.length)err('訂單不存在',404);
-      const cart=calculateCart(unpackJsonValue(existing[0].items,[]),PRODUCTS,4000);
+      const originalItems=unpackJsonValue(existing[0].items,[]);
+      const cart=unpackJsonValue(existing[0].cart_snapshot,null);
+      // Freeze original seller catalogue prices at the time the customer submitted the enquiry.
+      if(!cart||!Array.isArray(cart.lines)||cart.lines.length!==originalItems.length||
+         !cart.lines.every((line,i)=>line.sku===originalItems[i].sku &&
+           line.qty===originalItems[i].qty))
+        err('舊訂單冇可靠原價快照，請轉人工核對，唔可以套用新售價',409);
       const breakdown=buildSellerQuote(cart,body);
       const paymentLink=paymentProviderUrl(body.paymentLink||'');
       const quote={...breakdown,note:clean(body.note,280),paymentLink,quotedAt:new Date().toISOString()};
