@@ -443,7 +443,8 @@ async function handle(req) {
       return send({ok:true,order:{id:o.id,market:o.market,createdAt:o.created_at,
         status:o.status,items:unpackJsonValue(o.items,[]),quote:unpackJsonValue(o.quote,null),paymentStatus:o.payment_status,
         paidVerified:!!o.payment_verified_at,
-        stripeCheckoutAvailable:stripeReady()&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled'},
+        stripeCheckoutAvailable:stripeReady()&&!!o.quote&&!o.quote.paymentLink&&!o.payment_verified_at&&o.status!=='cancelled',
+        stripeCheckoutMode:stripeReady()?STRIPE_MODE:null},
         botMessage:'已收到訂單查詢，店主稍後核實商品、運費、稅項同正式報價。'});
     }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
       console.error('Receipt lookup failed',e?.code||e?.name);
