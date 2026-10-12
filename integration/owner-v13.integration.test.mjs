@@ -49,6 +49,12 @@ test('v13 CRM, bot, price, private receipt and payment confirmation lifecycle',a
  assert.equal(products.body.shippingPolicy.freeShippingThresholdHKD,4000);
  assert.equal(products.body.paymentsLive,false);
  assert.equal(products.body.botMode,'rules');
+ const compiled=await (await fetch(base+'/app.js')).text();
+ assert.ok(compiled.includes('"baseCurrency":"HKD","baseAmount":899'),'HKD seller price embedded in app');
+ assert.ok(compiled.includes('"usdApprox":114.55'),'USD reference embedded in app');
+ const quotedByBot=await api('/api/bot/reply',{method:'POST',...j({message:'神仙水 price how much?',language:'en'})});
+ assert.equal(quotedByBot.status,200);
+ assert.ok(quotedByBot.body.reply.includes('HK$899'),'Bot returns approved HKD selling price');
  const sample={market:'HK',items:[{sku:'FTE230',qty:1}],customer:{
   name:'TEST CUSTOMER ONLY',phone:'91234567',email:'contact@example.test',
   shipping:{region:'香港島',district:'中西區',address1:'Example Street 2',address2:''}
