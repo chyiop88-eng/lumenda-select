@@ -92,9 +92,9 @@ async function submit(method='PAYPAL',qty=1){
   return order.body;
 }
 async function quote(order,shipping='20',tax='5'){
-  const sum=order.cart.pricedSubtotalHkd;
+  const sum=order.cart.lines.reduce((v,l)=>v+Math.round(Math.round(l.unitPriceCny*100)*1.2)*l.qty,0)/100;
   const response=await api('/api/admin/orders/'+order.orderId+'/quote',{
-    method:'POST',...j({subtotalHkd:String(sum),shippingHkd:shipping,taxHkd:tax,
+    method:'POST',...j({fxRateCnyToHkd:'1.2',subtotalHkd:String(sum),shippingHkd:shipping,taxHkd:tax,
       unitPricesHkd:{},paymentLink:''},{cookie})});
   assert.equal(response.status,200,JSON.stringify(response.body));
   return response.body.quote;
@@ -154,8 +154,8 @@ after(async()=>{
 test('realistic PayPal sandbox order: quote -> approve -> capture -> receipts',async()=>{
   const order=await submit();
   const official=await quote(order);
-  assert.equal(official.subtotalHkd,899);
-  assert.equal(official.totalHkd,924);
+  assert.equal(official.subtotalHkd,900);
+  assert.equal(official.totalHkd,925);
   const original=await lookup(order);
   assert.equal(original.paypalCheckoutAvailable,true);
   assert.equal(original.paypalMode,'sandbox');
@@ -165,14 +165,14 @@ test('realistic PayPal sandbox order: quote -> approve -> capture -> receipts',a
   assert.equal(create.body.provider,'paypal');
   const rec=records.get(new URL(create.body.url).searchParams.get('token'));
   assert.ok(rec,'Paypal mock must be issued');
-  assert.equal(rec.payload.purchase_units[0].amount.value,'924.00');
+  assert.equal(rec.payload.purchase_units[0].amount.value,'925.00');
   assert.equal(rec.payload.purchase_units[0].reference_id,order.orderId);
   const again=await api('/api/order/paypal/create',{method:'POST',...j({token:order.receiptToken})});
   assert.equal(again.status,200,JSON.stringify(again.body));
   assert.equal(again.body.url,create.body.url);
   assert.equal(created,1,'Double checkout must not create two PSP orders');
   const change=await api('/api/admin/orders/'+order.orderId+'/quote',{method:'POST',
-    ...j({subtotalHkd:'900',shippingHkd:'0',taxHkd:'0'},{cookie})});
+    ...j({fxRateCnyToHkd:'1.2',subtotalHkd:'901',shippingHkd:'0',taxHkd:'0'},{cookie})});
   assert.equal(change.status,400,'Price mismatch is rejected');
   const noCancel=await api('/api/orders/'+order.orderId,{method:'PATCH',...j({status:'cancelled'},{cookie})});
   assert.equal(noCancel.status,404,'Active PSP session cannot silently cancel');
@@ -192,17 +192,17 @@ test('realistic PayPal sandbox order: quote -> approve -> capture -> receipts',a
   assert.equal(paid.paypalCheckoutAvailable,false);
   const apiOrders=await api('/api/orders',{headers:{cookie}});
   const saved=apiOrders.body.orders.find(x=>x.id===order.orderId);
-  assert.equal(saved.quote.totalHkd,924);
-  assert.equal(saved.cart_snapshot.pricedSubtotalHkd,899);
+  assert.equal(saved.quote.totalHkd,925);
+  assert.equal(saved.cart_snapshot.pricedSubtotalCny,750);
   assert.equal(saved.payment_reference,rec.captureId);
   const changedAfter=await api('/api/admin/orders/'+order.orderId+'/quote',{method:'POST',
-    ...j({subtotalHkd:'899',shippingHkd:'0',taxHkd:'0'},{cookie})});
+    ...j({fxRateCnyToHkd:'1.2',subtotalHkd:'900',shippingHkd:'0',taxHkd:'0'},{cookie})});
   assert.equal(changedAfter.status,409,'Paid quote remains immutable');
 });
 test('webhook must be verified with official PayPal API and fresh order amount',async()=>{
   const order=await submit('PAYPAL',2);
   const official=await quote(order,'90','10');
-  assert.equal(official.totalHkd,1898);
+  assert.equal(official.totalHkd,1900);
   const created=await api('/api/order/paypal/create',{method:'POST',...j({token:order.receiptToken})});
   assert.equal(created.status,200,JSON.stringify(created.body));
   const rec=records.get(new URL(created.body.url).searchParams.get('token'));
