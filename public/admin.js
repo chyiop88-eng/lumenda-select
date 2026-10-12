@@ -18,7 +18,7 @@ $('uploadFte').onclick=()=>uploadMedia('fte','fteFile');
 $('uploadAura').onclick=()=>uploadMedia('aura','auraFile');
 $('refresh').onclick=async()=>{await loadOrders();await loadAgents();await loadShowcaseMedia();await loadContacts();};
 $('logout').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST',body:'{}'});}catch{}setLoggedIn(false);show($('loginStatus'),'已登出',true);};
-$('export').onclick=()=>{if(!rows.length)return;const header=['order_id','created_at','market','status','name','phone','email','company','address','payment_method','other_payment','delivery_speed','delivery_note','items','note','referral_code'];const matrix=[header,...rows.map(o=>{const c=o.customer||{};return[o.id,o.created_at||o.createdAt,o.market,o.status,c.name,c.phoneIntl||c.phone,c.email,c.company,addressText(o),c.paymentMethod||c.preferredPayment,c.otherPayment,c.deliverySpeed,c.deliveryNote,(o.items||[]).map(i=>i.sku+' x '+i.qty).join('; '),o.note,o.referral_code||''];})];const csv='\uFEFF'+matrix.map(cols=>cols.map(safeCSV).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lumenda-orders-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);};
+$('export').onclick=()=>{if(!rows.length)return;const header=['order_id','created_at','market','status','name','phone','email','company','address','payment_method','other_payment','delivery_speed','delivery_note','items','note','referral_code','known_cart_subtotal_hkd','quote_subtotal_hkd','shipping_hkd','tax_hkd','checkout_total_hkd','payment_status','payment_reference'];const matrix=[header,...rows.map(o=>{const c=o.customer||{};return[o.id,o.created_at||o.createdAt,o.market,o.status,c.name,c.phoneIntl||c.phone,c.email,c.company,addressText(o),c.paymentMethod||c.preferredPayment,c.otherPayment,c.deliverySpeed,c.deliveryNote,(o.items||[]).map(i=>i.sku+' x '+i.qty).join('; '),o.note,o.referral_code||'',o.cart_snapshot?.pricedSubtotalHkd??'',o.quote?.subtotalHkd??'',o.quote?.shippingHkd??'',o.quote?.taxHkd??'',o.quote?.totalHkd??'',o.payment_status||'',o.payment_reference||''];})];const csv='\uFEFF'+matrix.map(cols=>cols.map(safeCSV).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lumenda-orders-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);};
 (async()=>{try{await api('/api/admin/session');setLoggedIn(true);await loadOrders();await loadAgents();await loadShowcaseMedia();await loadContacts();}catch{setLoggedIn(false);}})();
 
 
@@ -178,68 +178,124 @@ $('nextContacts').onclick=()=>loadContacts(contactsPage+1,contactsSearch);
 $('contactSearch').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();loadContacts(0,$('contactSearch').value.trim());}});
 function makeQuoteEditor(o){
   const wrap=contactElement('section',undefined,'order-quote-panel');
-  wrap.append(contactElement('h4','港幣報價及第三方付款連結'));
+  wrap.append(contactElement('h4','🧾 購物車核對 · 正式報價 · 收款'));
+  const cart=o.cart_snapshot||{lines:(o.items||[]).map(item=>({
+    sku:item.sku,qty:item.qty,
+    name:item.sku==='FTE230'?'神仙水 230ml':'小燈泡 50ml',
+    priceStatus:item.sku==='FTE230'?'seller_listed_price':'requires_seller_quote',
+    unitPriceHkd:item.sku==='FTE230'?899:null,
+    lineSubtotalHkd:item.sku==='FTE230'?899*item.qty:null
+  }))};
+  const lines=cart.lines||[];
+  const panel=contactElement('div',undefined,'order-cart-breakdown');
+  panel.append(contactElement('strong','商品數量及單價核對（以伺服器計算為準）'));
+  for(const line of lines)panel.append(contactElement('p',line.name+' × '+line.qty+
+    ' · '+(line.priceStatus==='requires_seller_quote'?'待賣家填正式單價':'HK$'+Number(line.unitPriceHkd).toFixed(2)+'／支 · HK$'+Number(line.lineSubtotalHkd).toFixed(2))));
+  wrap.append(panel);
+  const settled=['owner_verified','stripe_paid','paypal_paid'].includes(o.payment_status);
+  const locked=settled||!!o.stripe_session_id||!!o.paypal_order_id;
   const fields=contactElement('div',undefined,'field-grid');
   const controls={};
   const specs=[
-    ['subtotalHkd','商品小計 HKD（滿 4,000 免運）',o.quote?.subtotalHkd??'','number'],
-    ['shippingHkd','運費 HKD（達門檻自動歸零）',o.quote?.shippingHkd??'0','number'],
-    ['taxHkd','收件地適用稅費 HKD（自行核實）',o.quote?.taxHkd??'0','number'],
-    ['paymentLink','Stripe／PayPal 官方付款連結（選填）',o.quote?.paymentLink??'','url'],
-    ['note','報價備註（選填）',o.quote?.note??'','text']
+    ['subtotalHkd','商品小計 HKD（系統自動計算）',o.quote?.subtotalHkd??'','number'],
+    ['shippingHkd','運費 HKD（滿 HK$4,000 自動免費）',o.quote?.shippingHkd??'0','number'],
+    ['taxHkd','實際適用稅費 HKD（管理員核實）',o.quote?.taxHkd??'0','number'],
+    ['paymentLink','PayPal／Stripe 官方付款連結（選填；用於人工核實方式）',o.quote?.paymentLink??'','url'],
+    ['note','報價備註',o.quote?.note??'','text']
   ];
   for(const [key,title,value,type] of specs){
-    const label=contactElement('label',title,'field');
-    const ctrl=document.createElement('input');ctrl.type=type;ctrl.value=String(value);ctrl.autocomplete='off';
-    if(type==='number'){ctrl.min='0';ctrl.max='10000000';ctrl.step='.01';ctrl.inputMode='decimal';}
-    if(key==='paymentLink'){ctrl.placeholder='https://buy.stripe.com/... 或 https://www.paypal.com/...';ctrl.maxLength=1200;}
+    const label=contactElement('label',title,'field'),ctrl=document.createElement('input');
+    ctrl.type=type;ctrl.value=String(value);ctrl.autocomplete='off';
+    if(type==='number'){ctrl.min='0';ctrl.max='999999.99';ctrl.step='.01';ctrl.inputMode='decimal';}
+    if(key==='subtotalHkd')ctrl.readOnly=true;
+    if(key==='paymentLink'){ctrl.placeholder='https://www.paypal.com/...';ctrl.maxLength=1200;}
     if(key==='note')ctrl.maxLength=280;
+    if(locked)ctrl.disabled=true;
     label.append(ctrl);fields.append(label);controls[key]=ctrl;
+  }
+  const prices={};
+  for(const line of lines.filter(x=>x.priceStatus==='requires_seller_quote')){
+    const label=contactElement('label',line.name+'／支正式單價 HKD（數量 '+line.qty+'）','field');
+    const ctrl=document.createElement('input');ctrl.type='number';ctrl.min='.01';ctrl.max='999999.99';
+    ctrl.step='.01';ctrl.inputMode='decimal';ctrl.placeholder='填入已確認單價';
+    ctrl.value=String(o.quote?.lines?.find(x=>x.sku===line.sku)?.unitPriceHkd??'');
+    ctrl.disabled=locked;label.append(ctrl);fields.prepend(label);prices[line.sku]=ctrl;
   }
   const summary=contactElement('p','','quote-summary');
   function updateQuote(){
-    const subtotal=Number(controls.subtotalHkd.value||'0'),tax=Number(controls.taxHkd.value||'0');
-    const free=Number.isFinite(subtotal)&&subtotal>=4000;
-    controls.shippingHkd.disabled=free;if(free)controls.shippingHkd.value='0';
-    const shipping=Number(controls.shippingHkd.value||'0');
-    summary.textContent=(free?'✓ 商品小計滿 HK$4,000，免運費。':'未滿 HK$4,000，按目的地另外報運費。')+' 最終金額（未核實）：HK$'+(subtotal+shipping+tax).toFixed(2);
+    let subtotal=0,pending=false;
+    for(const line of lines){
+      const unit=line.priceStatus==='requires_seller_quote'?Number(prices[line.sku]?.value):Number(line.unitPriceHkd);
+      if(!(unit>0)||!Number.isFinite(unit)){pending=true;continue;}
+      subtotal+=Math.round(unit*100)*line.qty;
+    }
+    const money=subtotal/100;
+    controls.subtotalHkd.value=pending?'':money.toFixed(2);
+    const free=!pending&&subtotal>=400000;
+    if(!locked){controls.shippingHkd.disabled=free;if(free)controls.shippingHkd.value='0';}
+    const shipping=free?0:Number(controls.shippingHkd.value||0);
+    const tax=Number(controls.taxHkd.value||0);
+    summary.textContent=pending?'⚠ 請先填齊所有待報價商品嘅每支單價。':
+      '商品 HK$'+money.toFixed(2)+(free?' · 免運費':' · 未達 HK$4,000 免運門檻')+
+      ' + 運費 HK$'+shipping.toFixed(2)+' + 稅費 HK$'+tax.toFixed(2)+
+      ' = 正式應付 HK$'+(money+shipping+tax).toFixed(2);
   }
-  for(const field of ['subtotalHkd','shippingHkd','taxHkd'])controls[field].addEventListener('input',updateQuote);
+  for(const ctrl of Object.values(prices))ctrl.addEventListener('input',updateQuote);
+  for(const key of ['shippingHkd','taxHkd'])controls[key].addEventListener('input',updateQuote);
   updateQuote();
   const actions=contactElement('div',undefined,'button-row');
-  const save=contactElement('button','保存正式報價／付款連結','btn');
-  save.type='button';save.onclick=async()=>{
-    save.disabled=true;
-    try{
-      const fields=Object.fromEntries(Object.entries(controls).map(([key,input])=>[key,input.value]));
-      const response=await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/quote',{method:'POST',body:JSON.stringify(fields)});
-      if(!response.ok)throw new Error('儲存失敗');
-      show($('status'),'✅ '+o.id+' 已儲存港幣報價。'+(fields.paymentLink?'私人進度頁已可提供付款連結。':'暫未設定付款連結。'),true);
-      await loadOrders();
-    }catch(e){show($('status'),e.message,false);}
-    finally{save.disabled=false;}
-  };
-  actions.append(save);
-  if(o.payment_status==='link_ready'){
+  if(!locked){
+    const save=contactElement('button','保存一致嘅正式報價','btn');save.type='button';
+    save.onclick=async()=>{
+      save.disabled=true;
+      try{
+        const payload=Object.fromEntries(Object.entries(controls).map(([key,input])=>[key,input.value]));
+        payload.unitPricesHkd=Object.fromEntries(Object.entries(prices).map(([sku,input])=>[sku,input.value]));
+        const result=await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/quote',{method:'POST',body:JSON.stringify(payload)});
+        show($('status'),'✅ '+o.id+' 核對成功 · 正式應付 HK$'+Number(result.quote.totalHkd).toFixed(2)+
+          (payload.paymentLink?' · 已設定獨立付款連結':' · 如已啟用 PayPal，客人可用私人訂單連結結帳'),true);
+        await loadOrders();
+      }catch(e){show($('status'),e.message,false);}finally{save.disabled=false;}
+    };
+    actions.append(save);
+  }else actions.append(contactElement('p','報價已鎖定，不能喺付款頁建立後或付款成功後改價。','hint'));
+  const manualMethod=['FPS','USDT'].includes(o.customer?.paymentMethod)?o.customer.paymentMethod:'PAYPAL_LINK';
+  if(!settled&&!o.stripe_session_id&&!o.paypal_order_id&&o.quote && (o.payment_status==='link_ready'||['FPS','USDT'].includes(manualMethod))){
     const verify=contactElement('div',undefined,'quote-verification');
     const checkbox=document.createElement('input');checkbox.type='checkbox';
-    const label=document.createElement('label');label.append(checkbox,document.createTextNode(' 我已喺 Stripe／PayPal 商戶後台核實實際入帳'));
-    const ref=document.createElement('input');ref.type='text';ref.maxLength=100;ref.placeholder='真實交易參考編號（至少 6 字元）';
-    const button=contactElement('button','登記已核實付款','btn outline');
-    button.type='button';button.onclick=async()=>{
-      if(!checkbox.checked||ref.value.trim().length<6){show($('status'),'請先核實入帳並填交易參考編號',false);return;}
-      if(!window.confirm('確認你已到支付服務商後台核實 '+o.id+' 嘅實際入帳？'))return;
+    const label=document.createElement('label');label.append(checkbox,document.createTextNode(manualMethod==='FPS'?' 我已喺自己銀行帳戶核實 FPS 實際入帳及完整港幣金額':manualMethod==='USDT'?' 我已喺正確網絡核實交易最終確認、收款錢包及足額 USDT':' 我已喺 PayPal 商戶後台核實真實入帳'));
+    const ref=document.createElement('input');ref.type='text';ref.maxLength=100;ref.placeholder=manualMethod==='USDT'?'真實區塊鏈交易 Hash（64 位十六進位）':manualMethod==='FPS'?'銀行 FPS 入帳參考編號':'PayPal 真實交易參考編號';
+    let network=null;
+    if(manualMethod==='USDT'){
+      network=document.createElement('select');
+      network.add(new Option('請選擇 USDT 區塊鏈網絡',''));
+      for(const chain of ['TRC20','ERC20','BEP20'])network.add(new Option(chain,chain));
+    }
+    const button=contactElement('button','由管理員核實付款','btn outline');button.type='button';
+    button.onclick=async()=>{
+      if(!checkbox.checked||ref.value.trim().length<6){show($('status'),'請先核實入帳並填參考編號',false);return;}
+      if(!window.confirm('你已到支付服務商確認 '+o.id+' 真實入帳？'))return;
       button.disabled=true;
-      try{await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/payment',{method:'POST',
-        body:JSON.stringify({confirmed:true,transactionReference:ref.value.trim()})});
-        show($('status'),'已記錄商戶核實付款：'+o.id,true);await loadOrders();
+      try{
+        await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/payment',{
+          method:'POST',body:JSON.stringify({confirmed:true,transactionReference:ref.value.trim(),method:manualMethod,network:network?.value||''})});
+        show($('status'),'已記錄店主核實付款：'+o.id,true);await loadOrders();
       }catch(e){show($('status'),e.message,false);}finally{button.disabled=false;}
     };
-    verify.append(label,ref,button);actions.append(verify);
+    verify.append(label,ref);if(network)verify.append(network);
+    verify.append(button);actions.append(verify);
+  }else if(o.payment_status==='paypal_paid'){
+    actions.append(contactElement('p','✅ PayPal API 已核實實際入帳 · '+(o.payment_reference||'—'),'hint'));
+  }else if(o.payment_status==='paypal_approval_pending'){
+    actions.append(contactElement('p','PayPal 付款核准頁已建立，等待客人授權及付款核實。','hint'));
+  }else if(o.payment_status==='stripe_paid'){
+    actions.append(contactElement('p','✅ Stripe 簽名 Webhook 已驗證付款 · '+(o.payment_reference||'—'),'hint'));
   }else if(o.payment_status==='owner_verified'){
-    actions.append(contactElement('p','✅ 已登記店主核實付款（交易參考：'+(o.payment_reference||'—')+'）','hint'));
-  }else{
-    actions.append(contactElement('span','未啟用正式線上付款連結。','hint'));
-  }
+    actions.append(contactElement('p','✅ 店主已核實付款 · '+(o.payment_reference||'—'),'hint'));
+  }else if(o.payment_status==='checkout_ready'){
+    actions.append(contactElement('p','Stripe 付款頁已建立，等候網關確認。','hint'));
+  }else if(o.payment_status==='checkout_expired'||o.payment_status==='checkout_failed'){
+    actions.append(contactElement('p','付款未完成，客人可重新嘗試或轉人工處理。','hint'));
+  }else actions.append(contactElement('span','未完成正式收款。','hint'));
   wrap.append(fields,summary,actions);return wrap;
 }

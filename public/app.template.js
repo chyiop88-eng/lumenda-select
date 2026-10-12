@@ -121,6 +121,19 @@ function renderCart(){
   }
   if(count===0){const p=document.createElement('p');p.className='muted';p.textContent=tr('cartEmpty');lines.append(p);}
   $('cartCount').textContent=String(count);
+  const priced=PRODUCTS.reduce((sum,product)=>{
+    const unit=Number(product.price?.baseAmount);
+    return sum+(product.price?.baseCurrency==='HKD' && Number.isFinite(unit) && unit>0?Math.round(unit*100)*(selected[product.sku]||0):0);
+  },0);
+  const needsQuote=PRODUCTS.some(product=>(selected[product.sku]||0)>0&&!(product.price?.baseCurrency==='HKD'&&Number(product.price?.baseAmount)>0));
+  const fmt=cents=>'HK'+String.fromCharCode(36)+(cents/100).toLocaleString('en-HK',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const subtotal=$('cartSubtotal');
+  if(subtotal)subtotal.textContent=fmt(priced);
+  const notice=$('cartCalculation');
+  if(notice)notice.textContent=count===0?'選擇商品即可即時計算。':
+    (needsQuote?'購物車含待報價商品，未有最終總價。 ':'')+
+    (priced>=400000?'已標價商品小計達免運門檻，待賣家核對。':'已標價商品距離免運門檻尚差 '+fmt(400000-priced)+'。')+
+    ' 運費同稅費須核實，唔會自動扣款。';
 }
 function textVal(name){const el=document.querySelector('[name="'+name+'"]');return el?.value?.trim()||'';}
 function renderResult(){

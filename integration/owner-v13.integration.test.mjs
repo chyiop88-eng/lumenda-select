@@ -55,7 +55,7 @@ test('v13 CRM, bot, price, private receipt and payment confirmation lifecycle',a
  const quotedByBot=await api('/api/bot/reply',{method:'POST',...j({message:'神仙水 price how much?',language:'en'})});
  assert.equal(quotedByBot.status,200);
  assert.ok(quotedByBot.body.reply.includes('HK$899'),'Bot returns approved HKD selling price');
- const sample={market:'HK',items:[{sku:'FTE230',qty:1}],customer:{
+ const sample={market:'HK',items:[{sku:'FTE230',qty:5}],customer:{
   name:'TEST CUSTOMER ONLY',phone:'91234567',email:'contact@example.test',
   shipping:{region:'香港島',district:'中西區',address1:'Example Street 2',address2:''}
  },paymentMethod:'FPS',otherPayment:'',deliverySpeed:'standard',deliveryNote:'',
@@ -84,15 +84,14 @@ test('v13 CRM, bot, price, private receipt and payment confirmation lifecycle',a
  const badLink=await api(quoteURL,{method:'POST',...j({subtotalHkd:'3800',taxHkd:'20',shippingHkd:'70',paymentLink:'https://example.com/scam'},auth)});
  assert.equal(badLink.status,400);
  const below=await api(quoteURL,{method:'POST',...j({subtotalHkd:'3800',taxHkd:'20',shippingHkd:'70',paymentLink:''},auth)});
- assert.equal(below.status,200,JSON.stringify(below.body));
- assert.equal(below.body.quote.totalHkd,3890);assert.equal(below.body.quote.freeShipping,false);
- const over=await api(quoteURL,{method:'POST',...j({subtotalHkd:'4000',taxHkd:'50',shippingHkd:'99',paymentLink:'https://buy.stripe.com/example'},auth)});
+ assert.equal(below.status,400,'Server must reject a manually invented subtotal');
+ const over=await api(quoteURL,{method:'POST',...j({subtotalHkd:'4495',taxHkd:'50',shippingHkd:'99',paymentLink:'https://buy.stripe.com/example'},auth)});
  assert.equal(over.status,200,JSON.stringify(over.body));
- assert.equal(over.body.quote.shippingHkd,0);assert.equal(over.body.quote.totalHkd,4050);
+ assert.equal(over.body.quote.shippingHkd,0);assert.equal(over.body.quote.totalHkd,4545);
  assert.equal(over.body.paymentStatus,'link_ready');
  const updated=await api('/api/order/lookup',{method:'POST',...j({token:res.body.receiptToken})});
  assert.equal(updated.status,200);assert.equal(updated.body.order.paidVerified,false);
- assert.equal(updated.body.order.quote.totalHkd,4050);
+ assert.equal(updated.body.order.quote.totalHkd,4545);
  const pay='/api/admin/orders/'+res.body.orderId+'/payment';
  const notAllowed=await api(pay,{method:'POST',...j({confirmed:false,transactionReference:'ABCDEF'},auth)});
  assert.equal(notAllowed.status,400);

@@ -1,0 +1,58 @@
+name: Cart / Quote / Stripe Sandbox Verification
+on:
+  push:
+    branches:
+      - feature/cart-checkout-calculator-20261012
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  isolated-checkout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: checkout_audit
+          POSTGRES_PASSWORD: test_only_isolated_not_production
+          POSTGRES_DB: lumenda_checkout_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U checkout_audit -d lumenda_checkout_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install and verify Node / browser syntax / smoke / arithmetic
+        run: |
+          npm install --omit=dev
+          npm run build
+      - name: Verify isolated PostgreSQL cart and Stripe checkout lifecycle
+        env:
+          DATABASE_URL: postgres://checkout_audit:test_only_isolated_not_production@127.0.0.1:5432/lumenda_checkout_test
+        run: node --test integration/cart-stripe.integration.test.mjs
+      - name: Verify isolated PostgreSQL PayPal Orders v2 and FPS / USDT lifecycle
+        env:
+          DATABASE_URL: postgres://checkout_audit:test_only_isolated_not_production@127.0.0.1:5432/lumenda_checkout_test
+        run: node --test integration/paypal-checkout.integration.test.mjs
+      - name: Regression - owner CRM, manual PayPal links and receipts
+        env:
+          DATABASE_URL: postgres://checkout_audit:test_only_isolated_not_production@127.0.0.1:5432/lumenda_checkout_test
+          XAI_BOT_ENABLED: "false"
+        run: node --test integration/owner-v13.integration.test.mjs
+      - name: Regression - agent referral and attribution
+        env:
+          DATABASE_URL: postgres://checkout_audit:test_only_isolated_not_production@127.0.0.1:5432/lumenda_checkout_test
+        run: node --test integration/referrals.integration.test.mjs
+      - name: Regression - video manager
+        env:
+          DATABASE_URL: postgres://checkout_audit:test_only_isolated_not_production@127.0.0.1:5432/lumenda_checkout_test
+        run: node --test integration/showcase-v12.integration.test.mjs
