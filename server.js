@@ -259,3 +259,19 @@ createServer(async (req,res)=>{
     res.end(data);
   }catch(err){console.error('Uncaught request failure',err);res.writeHead(500,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify({ok:false,error:'Server error'}));}
 }).listen(port,'0.0.0.0',()=>console.log('LUMENDA SELECT listening on '+port));
+
+// Server-side persistence check. Never logs connection strings, credentials or customer data.
+async function checkDatabaseAtStartup(){
+  if(!DB){console.warn('LUMENDA_DB_CHECK: DATABASE_URL not configured');return;}
+  try {
+    await ensureTable();
+    await ensureMediaTable();
+    const ping=await DB`SELECT 1 AS connected`;
+    if(ping[0]?.connected!==1)throw new Error('Invalid database response');
+    console.log('LUMENDA_DB_CHECK: CONNECTED; orders and media tables ready');
+  }catch(e){
+    console.error('LUMENDA_DB_CHECK: FAILED '+String(e?.code||e?.name||'unknown').slice(0,80));
+  }
+}
+void checkDatabaseAtStartup();
+
