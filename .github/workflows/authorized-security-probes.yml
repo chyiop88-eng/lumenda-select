@@ -52,6 +52,14 @@ jobs:
           for path in ["/server.js","/.env","/package.json","/config/products.json","/.git/config"]:
               probe("private-file-blocked:"+path,"GET",path,{404})
           probe("unsafe-options-not-open","OPTIONS","/api/orders",{405})
+          # Limited rate-limit check: no real usernames or passwords, only empty JSON.
+          # Distinct reserved RFC 5737 IPs test whether client-provided proxy headers are trusted.
+          login_headers={"Content-Type":"application/json","CF-Connecting-IP":"198.51.100.211","X-Forwarded-For":"198.51.100.211"}
+          for i in range(8):
+              probe("rate-limit-baseline-"+str(i+1),"POST","/api/admin/login",{401},login_headers,b'{}')
+          probe("rate-limit-9th-request-blocked","POST","/api/admin/login",{429},login_headers,b'{}')
+          alternate_headers={"Content-Type":"application/json","CF-Connecting-IP":"198.51.100.212","X-Forwarded-For":"198.51.100.212"}
+          probe("rate-limit-must-resist-spoofed-IP","POST","/api/admin/login",{429},alternate_headers,b'{}')
           passed=sum(ok for _,ok,_ in rows)
           print(f"SUMMARY: {passed}/{len(rows)} probes passed; no real orders, data modifications, or successful logins attempted.",flush=True)
           if passed!=len(rows):sys.exit(1)
