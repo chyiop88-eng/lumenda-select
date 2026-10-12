@@ -63,7 +63,13 @@ test('v13 CRM, bot, price, private receipt and payment confirmation lifecycle',a
  assert.ok(!JSON.stringify(lookup.body).includes('91234567'),'Private receipt may not show PII');
  assert.equal(lookup.body.order.paidVerified,false);
  const contacts=await api('/api/admin/contacts?q=91234567',{headers:auth});
- assert.equal(contacts.status,200);assert.ok(contacts.body.contacts.some(c=>c.phone.includes('91234567')),JSON.stringify({contactPayload:contacts.body,receiptId:res.body.orderId}));
+ assert.equal(contacts.status,200);const all=await api('/api/admin/contacts',{headers:auth});
+  const orderSummary=await api('/api/orders',{headers:auth});
+  const saved=orderSummary.body.orders?.find(x=>x.id===res.body.orderId);
+  const appearsInOrder=String(saved?.customer?.phoneIntl||'').endsWith('91234567');
+  assert.ok(contacts.body.contacts.some(c=>c.phone.includes('91234567')),
+    JSON.stringify({filteredCount:contacts.body.contacts.length,allCount:all.body.contacts?.length,
+      hasSavedOrder:!!saved,storedPhoneMatches:appearsInOrder}));
  const rows=await api('/api/orders',{headers:auth});
  assert.equal(rows.status,200);assert.ok(rows.body.orders.some(r=>r.id===res.body.orderId));
  const quoteURL='/api/admin/orders/'+res.body.orderId+'/quote';
