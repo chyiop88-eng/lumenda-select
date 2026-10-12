@@ -1,6 +1,6 @@
-# LUMENDA SELECT · Render full-stack source (v9)
+# LUMENDA SELECT · Rose Aura v12 (video + motion image slots)
 
-This is a source project prepared for Render, adapted from the original Railway / Bun version. It is **not yet deployed to Render**.
+This live Node.js/PostgreSQL website is deployed at https://lumenda-select-preview.onrender.com. Source is managed on GitHub and automatically built on Render. The app is an enquiry storefront, not an online card checkout.
 
 ## What it includes
 
@@ -9,7 +9,10 @@ This is a source project prepared for Render, adapted from the original Railway 
 - Real order API, persisted into PostgreSQL once `DATABASE_URL` is set
 - Admin sign-in at `/admin` (also `/admin.html`), protected order list and status updates, CSV export
 - Two admin image upload slots: Facial Treatment Essence / 神仙水, GenOptics Aura Essence / 小燈泡. Uploaded JPG/PNG/WebP up to 4 MB are stored persistently in PostgreSQL `bytea` and served under `/media/fte` and `/media/aura` (with the high-quality default art as fallback)
-- Preloaded 1122×1402 promotional WebP artwork (~330 KB each) from the user's previous website project
+- Preloaded 1122×1402 promotional WebP artwork from the user's previous website project
+- **Three optional video/animated imagery areas:** a brand cinema area after the home hero, and a motion slot under each of the two SK-II campaign cards. Blank slots are completely hidden, so existing layouts remain compact.
+- **Rose Aura motion effects:** gently moving rose petals, shimmering highlights and Ken Burns-style movement of the two uploaded still promotional artworks. Respect browser reduced-motion preferences.
+- Owner-only **影片／動態圖片管理** editor, backed by PostgreSQL URLs with per-slot enable/disable. External MP4/WebM, YouTube, Vimeo, GIF, animated WebP and APNG are supported. Actual large video binaries are *not* uploaded to Render.
 
 **Independent retailer:** LUMENDA SELECT is not affiliated with, endorsed by, or an authorized store of SK-II/P&G. Promotional artwork is AI-created retailer artwork, not official campaign photography.
 
@@ -26,7 +29,7 @@ Node.js 20+, PostgreSQL 14+.
 3. Set private environment variables (see `.env.example`): `DATABASE_URL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` (minimum 16 characters), `ADMIN_SESSION_SECRET` (minimum 32 characters). Never commit real values.
 4. `npm start` (binds to `PORT`, default 3000)
 
-The application creates `lumenda_orders` and `lumenda_media` tables on first use. Back up your PostgreSQL data. Do not use an expiring trial database for real customer orders.
+The application creates `lumenda_orders`, `lumenda_media`, `lumenda_agents`, and `lumenda_showcase_media` tables on first use. Back up your PostgreSQL data. Do not use an expiring trial database for real customer orders.
 
 ## Deploy on Render
 
@@ -49,10 +52,24 @@ For durable live orders use a **persistent** PostgreSQL plan and connect its *in
 - `/api/admin/login`, `/api/admin/logout`, `/api/admin/session`
 - `/api/admin/media/fte`, `/api/admin/media/aura` POST authenticated uploads
 - `/media/fte`, `/media/aura` GET public images
+- `/api/showcase` GET public, enabled media slots only
+- `/api/admin/showcase` GET authenticated editor state, `/api/admin/showcase/{brand|fte|aura}` POST authenticated URL and publish settings
 
 No automatic inventory or shipping quotes; no live payment processor or merchant account; confirmation remains manual. **Original Railway PostgreSQL order records are not automatically migrated** and are not deleted by this package. Migrate/copy them separately only after assessing the existing database.
 
 Do not reuse the admin password disclosed in any earlier chat; generate a new strong password. The app uses HttpOnly Secure SameSite=Strict signed sessions, 8-hour max age, basic login throttling, a size-limited image upload, and simple order rate limiting. For a large real store, add managed bot protection and stronger audit logging.
+
+
+## 🎬 How to add videos or motion images from the owner dashboard
+
+1. Finish your video and host it at YouTube or Vimeo, or upload an MP4/WebM to a video CDN/object-storage service that offers a public **HTTPS direct-file URL**.
+2. Log in at https://lumenda-select-preview.onrender.com/admin and open **影片／動態圖片管理**.
+3. Choose one of three positions: homepage brand feature, Facial Treatment Essence, or GenOptics Aura Essence.
+4. Select **video** or **motion image**; paste a source URL. For videos, accepted formats are YouTube/Vimeo pages and direct HTTPS MP4/WebM. For motion images use direct HTTPS GIF, animated WebP or APNG URLs. Animated-image files must truly contain multiple frames; the extension alone does not turn a still picture into an animation.
+5. Tick the visibility checkbox and save the slot. Reload the storefront. Unpublished or empty slots render nothing and create no reserved whitespace. To temporarily hide the media, untick the checkbox and save; to delete the source, clear the URL and save it as disabled.
+6. Direct MP4/WebM videos play muted while visible (with controls). YouTube and Vimeo open only when a visitor presses **Play video**. Visitors preferring reduced motion do not receive automatic playback. If an external source fails to load, the video will be hidden.
+
+**No additional hosting fee was initiated.** Large videos are intentionally kept outside the expiring/free Render instance; only sanitized links and visibility preferences are stored in PostgreSQL. Avoid expiring/signed URLs or links that require provider authentication, and respect video/music licensing. This system doesn't accept local video-file uploads from the admin dashboard.
 
 ## Tests
 

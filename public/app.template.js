@@ -190,3 +190,83 @@ setLanguage(I18N.DEFAULT_LANG[marketSelect.value],false);
     },{passive:true});
   }
 })();
+
+
+// Cinematic video / animated imagery: no blank spaces until owner enables a slot.
+(async function initializeCinematicMedia(){
+  const stageConfig=[
+    {slot:'brand',wrapper:'brandCinema',host:'brandMediaHost'},
+    {slot:'fte',wrapper:'fteMediaSlot',host:'fteMediaHost'},
+    {slot:'aura',wrapper:'auraMediaSlot',host:'auraMediaHost'}
+  ];
+  const prefersReduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches||false;
+  let slots;
+  try{
+    const result=await fetch('/api/showcase',{cache:'no-store',credentials:'omit'});
+    if(!result.ok)return;
+    const parsed=await result.json();if(!parsed.ok)return;
+    slots=parsed.slots||{};
+  }catch{return;}
+  function trustedSource(item){
+    if(!item||!['motion','video'].includes(item.kind))return null;
+    let u;try{u=new URL(item.url);}catch{return null;}
+    if(u.protocol!=='https:'||u.username||u.password)return null;
+    if(item.kind==='motion'&&item.provider==='image'&&/\.(gif|webp|apng)$/i.test(u.pathname))return u;
+    if(item.kind==='video'){
+      if(item.provider==='file'&&/\.(mp4|webm)$/i.test(u.pathname))return u;
+      if(item.provider==='youtube'&&u.hostname==='www.youtube-nocookie.com'&&/^\/embed\/[A-Za-z0-9_-]{11}$/.test(u.pathname))return u;
+      if(item.provider==='vimeo'&&u.hostname==='player.vimeo.com'&&/^\/video\/\d+$/.test(u.pathname))return u;
+    }
+    return null;
+  }
+  for(const cfg of stageConfig){
+    const item=slots[cfg.slot],u=trustedSource(item);
+    if(!u)continue;
+    const wrapper=$(cfg.wrapper),host=$(cfg.host);
+    if(!wrapper||!host)continue;
+    const screen=document.createElement('div');screen.className='showcase-video-screen showcase-video-screen--'+cfg.slot;
+    if(item.kind==='motion'){
+      const picture=document.createElement('img');
+      picture.className='motion-image';picture.src=u.href;picture.loading='lazy';picture.decoding='async';
+      picture.referrerPolicy='no-referrer';
+      picture.alt='LUMENDA SELECT '+cfg.slot+' animated visual';
+      picture.onerror=()=>{wrapper.hidden=true;};
+      screen.append(picture);
+    }else if(item.provider==='file'){
+      const video=document.createElement('video');
+      video.src=u.href;video.poster=cfg.slot==='aura'?'/media/aura':'/media/fte';
+      video.preload=cfg.slot==='brand'?'metadata':'none';
+      video.muted=true;video.controls=true;video.playsInline=true;video.loop=true;
+      video.setAttribute('aria-label','LUMENDA SELECT '+cfg.slot+' product film');
+      video.onerror=()=>{wrapper.hidden=true;};
+      screen.append(video);
+      if(!prefersReduced&&'IntersectionObserver' in window){
+        const watcher=new IntersectionObserver(entries=>{
+          for(const entry of entries){
+            if(entry.isIntersecting&&document.visibilityState==='visible')video.play().catch(()=>{});
+            else video.pause();
+          }
+        },{threshold:.3});
+        watcher.observe(screen);
+        document.addEventListener('visibilitychange',()=>{if(document.hidden)video.pause();},{passive:true});
+      }
+    }else{
+      const preview=document.createElement('div');preview.className='showcase-video-screen__preview';
+      const button=document.createElement('button');button.type='button';button.className='showcase-video-screen__play';
+      button.textContent='▶ '+tr('playVideo');button.dataset.videoPlay='1';
+      button.onclick=()=>{
+        const frame=document.createElement('iframe');
+        const url=new URL(u.href);
+        url.searchParams.set('autoplay','1');
+        url.searchParams.set(item.provider==='vimeo'?'muted':'mute','1');
+        frame.src=url.href;frame.title='LUMENDA SELECT '+cfg.slot+' film';
+        frame.allow='autoplay; fullscreen; picture-in-picture; encrypted-media';
+        frame.allowFullscreen=true;frame.referrerPolicy='strict-origin-when-cross-origin';
+        screen.replaceChildren(frame);screen.classList.remove('showcase-video-screen--external');
+      };
+      screen.classList.add('showcase-video-screen--external');screen.append(preview,button);
+    }
+    host.replaceChildren(screen);
+    wrapper.hidden=false;
+  }
+})();

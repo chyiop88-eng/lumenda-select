@@ -28,9 +28,22 @@ Updated 2026-10-12. No passwords, database URLs, session signing keys or custome
 - `lumenda_orders`: order ID, timestamp, status, destination, customer and shipment info (JSONB), products (JSONB), note, `referral_code` (nullable).
 - `lumenda_media`: owner-uploaded promotional assets for the two products; served at `/media/fte` and `/media/aura`.
 - `lumenda_agents`: per-agent sharing codes, display names, role (`agent` or `referrer`), optional superior `parent_code`, enable/disable status, creation time.
+- `lumenda_showcase_media`: owner-managed, enable/disable links for the three optional brand and product video/motion-image slots.
 - Admin can read up to the latest 300 orders through `GET /api/orders`, update status, and export the loaded results as CSV. **This is NOT a complete PostgreSQL backup** if there are more than 300 orders.
 - For a full database backup, use the database admin/pg_dump in an appropriately secured environment. Never put DB exports, backups or live `DATABASE_URL` in a public GitHub repository or chat.
 - The original Railway order database, if still present, is a separate database and is NOT automatically migrated into Render.
+
+
+## Video and animated imagery controls (v12)
+- Three optional cinema slots: **brand** after the homepage hero; **fte** below Facial Treatment Essence card; **aura** below GenOptics Aura Essence card.
+- Each slot supports exactly one enabled media URL at a time (video or animated image); setting/unsetting a slot never removes the original two product images.
+- Config stored in `lumenda_showcase_media`: `slot`, `kind` (`video` or `motion`), `provider`, `url`, `enabled`, and `updated_at`.
+- Admin management: `/admin` → **影片／動態圖片管理** → select slot and media type → paste HTTPS URL → tick enable → Save. Changes take effect without redeploying.
+- Accepted links: YouTube, Vimeo, direct HTTPS .mp4/.webm; or direct HTTPS animated .gif/.webp/.apng.
+- Video files themselves must be hosted separately. Render stores links but not video binaries; do not upload large files to ephemeral Render disk. Public videos may create bandwidth/hosting charges at your chosen external provider.
+- No media configured: slot remains hidden without whitespace. Pages still use existing Rose Aura cinematic CSS motion (drifting petals, soft light, subtle portrait breathing); reduce-motion system settings disable animated motion.
+- Public `GET /api/showcase` shows enabled slots only. Owner-only `GET /api/admin/showcase` and `POST /api/admin/showcase/{slot}` manage configuration.
+- In this version, a slot is either an animated image or video. Unlimited galleries, self-hosted video uploads, transcoding, progress bars, analytics and pay-per-video features have not been implemented.
 
 ## Creating agent/referrer sharing links
 1. Log in as owner at `/admin`.

@@ -7,19 +7,19 @@ function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function safeCSV(value){let v=String(value??'');if(/^[\s]*[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"';}
 function addressText(o){const s=o.customer?.shipping;if(!s)return[o.customer?.address,o.customer?.city,o.customer?.postalCode].filter(Boolean).join(', ');return[s.postcode,s.province,s.region,s.city,s.district,s.subdistrict,s.address1,s.address2].filter(Boolean).join(' / ');}
 function show(el,txt,ok){el.textContent=txt;el.className='status show '+(ok?'ok':'err');}
-function setLoggedIn(on){$('loginCard').hidden=on;$('adminArea').hidden=!on;if(!on){rows=[];agents=[];$('orders').replaceChildren();$('agentList').replaceChildren();$('export').disabled=true;}}
+function setLoggedIn(on){$('loginCard').hidden=on;$('adminArea').hidden=!on;if(!on){rows=[];agents=[];$('orders').replaceChildren();$('agentList').replaceChildren();$('showcaseAdminCards').replaceChildren();$('export').disabled=true;}}
 async function api(url,options={}){const res=await fetch(url,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let data={};try{data=await res.json();}catch{}if(!res.ok){const e=new Error(data.error||('HTTP '+res.status));e.status=res.status;throw e;}return data;}
 async function uploadMedia(key,inputId){const file=$(inputId).files?.[0];if(!file){show($('mediaStatus'),'請先揀圖片。',false);return;}if(file.size>4*1024*1024){show($('mediaStatus'),'圖片不可超過 4 MB。',false);return;}if(!['image/jpeg','image/png','image/webp'].includes(file.type)){show($('mediaStatus'),'只支援 JPG、PNG、WebP。',false);return;}show($('mediaStatus'),'上傳中…',true);const res=await fetch('/api/admin/media/'+key,{method:'POST',credentials:'same-origin',headers:{'Content-Type':file.type},body:file});let data={};try{data=await res.json();}catch{}if(!res.ok){if(res.status===401){setLoggedIn(false);show($('loginStatus'),'登入已失效，請重新登入。',false);}else show($('mediaStatus'),data.error||'上傳失敗',false);return;}show($('mediaStatus'),'✅ 已上傳 '+(key==='fte'?'神仙水':'小燈泡')+' 廣告圖（'+Math.round(data.bytes/1024)+' KB）。首頁已更新。',true);$(inputId).value='';}
 async function loadOrders(){try{const data=await api('/api/orders');rows=data.orders||[];show($('status'),'成功讀取 '+rows.length+' 張訂單',true);render();}catch(e){if(e.status===401){setLoggedIn(false);show($('loginStatus'),'登入已失效，請重新登入。',false);}else show($('status'),e.message,false);}}
 function render(){const target=$('orders');target.replaceChildren();$('export').disabled=!rows.length;for(const o of rows){const c=o.customer||{},card=document.createElement('section');card.className='card';card.style.marginTop='16px';const h=document.createElement('h3');h.textContent=o.id+' · '+o.market+' · '+new Date(o.created_at||o.createdAt).toLocaleString();const summary=document.createElement('div');const text=[['收件人',c.name],['聯絡電話',c.phoneIntl||c.phone],['電郵',c.email],['公司',c.company],['地址',addressText(o)],['物流備註',c.deliveryNote],['配送',c.deliverySpeed],['付款偏好',c.paymentMethod||c.preferredPayment],['其他收款查詢',c.otherPayment],['聯絡方式',(c.contactMethod||'')+' '+(c.contactId||'')],['介紹來源',o.referral_code?(agents.find(a=>a.code===o.referral_code)?.name||'未命名代理')+' · '+o.referral_code:null],['備註',o.note]].filter(x=>x[1]);summary.innerHTML=text.map(([label,value])=>'<p><b>'+esc(label)+'：</b>'+esc(value)+'</p>').join('');const goods=document.createElement('p');goods.textContent=(o.items||[]).map(i=>i.sku+' × '+i.qty).join('；');const select=document.createElement('select');select.style.maxWidth='240px';for(const [value,label]of Object.entries(labels))select.add(new Option(label,value));select.value=o.status;select.onchange=async()=>{select.disabled=true;try{await api('/api/orders/'+encodeURIComponent(o.id),{method:'PATCH',body:JSON.stringify({status:select.value})});o.status=select.value;show($('status'),'已更新 '+o.id+'；網站不會自動確認付款。',true);}catch(e){show($('status'),e.message,false);await loadOrders();}finally{select.disabled=false;}};const copy=document.createElement('button');copy.className='btn outline';copy.type='button';copy.style.marginLeft='12px';copy.textContent='複製收件資料';copy.onclick=()=>{const msg=[o.id,c.name,c.phoneIntl||c.phone,addressText(o),c.deliveryNote||''].filter(Boolean).join('\n');navigator.clipboard?.writeText(msg).then(()=>show($('status'),'收件資料已複製',true)).catch(()=>show($('status'),'請手動複製收件資料',false));};card.append(h,summary,goods,select,copy);target.append(card);}if(!rows.length){const p=document.createElement('p');p.className='muted';p.textContent='暫無訂單';target.append(p);}}
-$('login').onclick=async()=>{const username=$('username').value.trim(),password=$('password').value;try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({username,password})});$('password').value='';setLoggedIn(true);show($('status'),'登入成功',true);await loadOrders();await loadAgents();}catch(e){show($('loginStatus'),e.message,false);}};
+$('login').onclick=async()=>{const username=$('username').value.trim(),password=$('password').value;try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({username,password})});$('password').value='';setLoggedIn(true);show($('status'),'登入成功',true);await loadOrders();await loadAgents();await loadShowcaseMedia();}catch(e){show($('loginStatus'),e.message,false);}};
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter')$('login').click();});
 $('uploadFte').onclick=()=>uploadMedia('fte','fteFile');
 $('uploadAura').onclick=()=>uploadMedia('aura','auraFile');
-$('refresh').onclick=async()=>{await loadOrders();await loadAgents();};
+$('refresh').onclick=async()=>{await loadOrders();await loadAgents();await loadShowcaseMedia();};
 $('logout').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST',body:'{}'});}catch{}setLoggedIn(false);show($('loginStatus'),'已登出',true);};
 $('export').onclick=()=>{if(!rows.length)return;const header=['order_id','created_at','market','status','name','phone','email','company','address','payment_method','other_payment','delivery_speed','delivery_note','items','note','referral_code'];const matrix=[header,...rows.map(o=>{const c=o.customer||{};return[o.id,o.created_at||o.createdAt,o.market,o.status,c.name,c.phoneIntl||c.phone,c.email,c.company,addressText(o),c.paymentMethod||c.preferredPayment,c.otherPayment,c.deliverySpeed,c.deliveryNote,(o.items||[]).map(i=>i.sku+' x '+i.qty).join('; '),o.note,o.referral_code||''];})];const csv='\uFEFF'+matrix.map(cols=>cols.map(safeCSV).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lumenda-orders-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);};
-(async()=>{try{await api('/api/admin/session');setLoggedIn(true);await loadOrders();await loadAgents();}catch{setLoggedIn(false);}})();
+(async()=>{try{await api('/api/admin/session');setLoggedIn(true);await loadOrders();await loadAgents();await loadShowcaseMedia();}catch{setLoggedIn(false);}})();
 
 
 function inviteUrl(code){const u=new URL('/',location.origin);u.searchParams.set('ref',code);return u.href;}
@@ -78,3 +78,68 @@ $('createAgent').onclick=async()=>{
   finally{button.disabled=false;button.textContent='建立專屬邀請連結';}
 };
 $('refreshAgents').onclick=loadAgents;
+
+
+
+// Owner-only cinematic media manager. Sources are HTTPS links, not uploaded binary files.
+const SHOWCASE_EDITOR_SLOTS=[
+  {slot:'brand',title:'✧ 首頁品牌影片',subtitle:'位於首頁下方、產品區上方'},
+  {slot:'fte',title:'01 · 神仙水影片',subtitle:'神仙水產品展示下方'},
+  {slot:'aura',title:'02 · 小燈泡影片',subtitle:'小燈泡產品展示下方'}
+];
+async function loadShowcaseMedia(){
+  try{
+    const res=await api('/api/admin/showcase');
+    const previous=new Map((res.media||[]).map(v=>[v.slot,v]));
+    renderShowcaseEditor(previous);
+  }catch(e){if(e.status===401){setLoggedIn(false);show($('loginStatus'),'登入已失效，請重新登入。',false);}
+    else show($('showcaseAdminStatus'),e.message,false);}
+}
+function renderShowcaseEditor(records){
+  const wrap=$('showcaseAdminCards');wrap.replaceChildren();
+  for(const meta of SHOWCASE_EDITOR_SLOTS){
+    const saved=records.get(meta.slot)||{kind:'video',url:'',enabled:false};
+    const card=document.createElement('section');card.className='showcase-editor-card';
+    const name=document.createElement('h4');name.textContent=meta.title;
+    const sub=document.createElement('p');sub.className='showcase-editor__hint';sub.textContent=meta.subtitle;
+    const kindGroup=document.createElement('div');kindGroup.className='field';
+    const kindLabel=document.createElement('label');kindLabel.textContent='素材類型';
+    const kind=document.createElement('select');kind.add(new Option('🎥 影片（MP4 / WebM / YouTube / Vimeo）','video'));kind.add(new Option('✨ 動態圖片（GIF / WebP / APNG）','motion'));
+    kind.value=saved.kind==='motion'?'motion':'video';
+    kindLabel.append(kind);kindGroup.append(kindLabel);
+    const urlGroup=document.createElement('div');urlGroup.className='field';
+    const urlLabel=document.createElement('label');urlLabel.textContent='HTTPS 素材網址';
+    const input=document.createElement('input');input.type='url';input.autocomplete='off';input.spellcheck=false;input.value=saved.url||'';
+    input.maxLength=1200;
+    const hint=document.createElement('div');hint.className='showcase-editor__hint';
+    function updateHint(){
+      if(kind.value==='motion'){
+        input.placeholder='https://cdn.example.com/rose-animation.webp';
+        hint.textContent='動態圖片要使用直接以 .gif、.webp 或 .apng 結尾嘅 HTTPS 網址。';
+      }else{
+        input.placeholder='https://youtu.be/... 或 https://cdn.example.com/film.mp4';
+        hint.textContent='可以貼 YouTube、Vimeo 網址，或者以 .mp4、.webm 結尾嘅 HTTPS 直鏈。';
+      }
+    }
+    kind.onchange=updateHint;updateHint();
+    urlLabel.append(input);urlGroup.append(urlLabel,hint);
+    const toggleLabel=document.createElement('label');toggleLabel.className='showcase-editor__toggle';
+    const check=document.createElement('input');check.type='checkbox';check.checked=!!saved.enabled;
+    const checkText=document.createElement('span');checkText.textContent='喺前台顯示呢個位置';
+    toggleLabel.append(check,checkText);
+    const save=document.createElement('button');save.type='button';save.className='btn';save.textContent='保存此位置';
+    save.onclick=async()=>{
+      if(check.checked&&!input.value.trim()){
+        show($('showcaseAdminStatus'),'請先填寫 '+meta.title+' 嘅網址，或者先取消啟用。',false);return;
+      }
+      save.disabled=true;save.textContent='保存中…';
+      try{
+        await api('/api/admin/showcase/'+meta.slot,{method:'POST',body:JSON.stringify({kind:kind.value,url:input.value.trim(),enabled:check.checked})});
+        show($('showcaseAdminStatus'),'✅ '+meta.title+' 已保存。'+(check.checked?'前台已啟用，重新整理網站即可查看。':'目前前台保持隱藏。'),true);
+        await loadShowcaseMedia();
+      }catch(e){show($('showcaseAdminStatus'),e.message,false);}
+      finally{save.disabled=false;save.textContent='保存此位置';}
+    };
+    card.append(name,sub,kindGroup,urlGroup,toggleLabel,save);wrap.append(card);
+  }
+}

@@ -62,6 +62,54 @@ function ensureMediaTable(){
   return mediaInitPromise;
 }
 // Agent/referrer share links are public codes, never owner credentials.
+
+const SHOWCASE_SLOTS=Object.freeze(['brand','fte','aura']);
+let showcaseInitPromise;
+function ensureShowcaseTable(){
+  if(!DB)throw new Error('Database not configured');
+  if(!showcaseInitPromise)showcaseInitPromise=DB`CREATE TABLE IF NOT EXISTS lumenda_showcase_media (
+    slot text PRIMARY KEY CHECK (slot IN ('brand','fte','aura')),
+    kind text NOT NULL CHECK (kind IN ('video','motion')),
+    provider text NOT NULL CHECK (provider IN ('file','youtube','vimeo','image','none')),
+    url text NOT NULL DEFAULT '',
+    enabled boolean NOT NULL DEFAULT false,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`.catch(e=>{showcaseInitPromise=null;throw e;});
+  return showcaseInitPromise;
+}
+// Links only, never media uploaded to ephemeral Render disk.
+// Canonical URL processing prevents javascript:, http:, credentials and local targets.
+function normalizeShowcaseUrl(raw,kind){
+  const source=String(raw??'').trim();
+  if(!['video','motion'].includes(kind))err('請選擇影片或動態圖片',400);
+  if(!source)return {url:'',provider:'none'};
+  if(source.length>1200)err('影片網址過長',400);
+  let u;try{u=new URL(source);}catch{err('請輸入有效 HTTPS 影片網址',400);}
+  if(u.protocol!=='https:'||u.username||u.password||u.port||u.hash)err('只接受無帳密嘅 HTTPS 網址',400);
+  const host=u.hostname.toLowerCase();
+  if(!host.includes('.')||host==='localhost'||host.endsWith('.localhost')||host.endsWith('.local')||host.endsWith('.internal')||host.endsWith('.invalid')||/^[0-9.]+$/.test(host)||host.includes(':'))err('唔接受內部或無效主機網址',400);
+  if(kind==='motion'){
+    if(!/\.(?:gif|webp|apng)$/i.test(u.pathname))err('動態圖片只支援 GIF、Animated WebP 或 APNG HTTPS 直鏈',400);
+    return {url:u.href,provider:'image'};
+  }
+  if(/\.(?:mp4|webm)$/i.test(u.pathname))return {url:u.href,provider:'file'};
+  let id;
+  if(['youtube.com','www.youtube.com','m.youtube.com','youtu.be','www.youtu.be','www.youtube-nocookie.com'].includes(host)){
+    if(host==='youtu.be'||host==='www.youtu.be')id=u.pathname.split('/')[1];
+    else if(u.pathname==='/watch')id=u.searchParams.get('v');
+    else if(/^\/(?:shorts|embed)\//.test(u.pathname))id=u.pathname.split('/')[2];
+    if(!/^[A-Za-z0-9_-]{11}$/.test(id||''))err('YouTube 影片 ID 無效',400);
+    return {url:'https://www.youtube-nocookie.com/embed/'+id,provider:'youtube'};
+  }
+  if(['vimeo.com','www.vimeo.com','player.vimeo.com'].includes(host)){
+    const matched=(host==='player.vimeo.com'?u.pathname.match(/^\/video\/(\d+)\/?$/):u.pathname.match(/^\/(\d+)\/?$/));
+    if(!matched)err('Vimeo 影片網址無效',400);
+    return {url:'https://player.vimeo.com/video/'+matched[1],provider:'vimeo'};
+  }
+  err('請提供 MP4/WebM、YouTube 或 Vimeo 影片網址',400);
+}
+function emptyShowcase(){return Object.fromEntries(SHOWCASE_SLOTS.map(slot=>[slot,null]));}
+
 const AGENT_CODE_PATTERN=/^(AG|RF)[A-F0-9]{14}$/;
 let agentsInitPromise;
 function ensureAgentsTable(){
@@ -193,7 +241,7 @@ function serveFile(path, method) {
       'Content-Type':mime,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
       'X-Frame-Options':'DENY','X-Robots-Tag':'noindex,nofollow',
       'Referrer-Policy':'strict-origin-when-cross-origin',
-      'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+      'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'"
     }});
   }catch(e){console.error('Static file unavailable',e?.message);return new Response('Not found',{status:404});}
 }
@@ -212,9 +260,47 @@ async function handle(req) {
 
   const path=new URL(req.url).pathname;
   if(path==='/api/health' && req.method==='GET')
-    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'11.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,agentInvitesEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
+    return send({ok:true,brand:'LUMENDA SELECT',mode:'order_enquiry',uiVersion:'12.0.0',shippingPolicy:SHIPPING_POLICY,featuredSKUs:PRODUCTS.map(p=>p.sku),hdCampaignsReady:Object.keys(HD_MEDIA).every(path=>!!getHDImage(path)),languages:['zh-Hant','zh-Hans','en','ms','vi','th'],ordersEnabled:!!DB,agentInvitesEnabled:!!DB,paymentsLive:false,shippingMarkets:Object.keys(MARKETS)});
   if(path==='/api/markets' && req.method==='GET')
     return send({markets:MARKETS,paymentMode:'enquiry_only',paymentsLive:false,shippingPolicy:SHIPPING_POLICY});
+
+  if(path==='/api/showcase' && req.method==='GET'){
+    const slots=emptyShowcase();
+    try{
+      await ensureShowcaseTable();
+      const rows=await DB`SELECT slot,kind,provider,url FROM lumenda_showcase_media WHERE enabled=true AND url<>''`;
+      for(const row of rows)if(Object.hasOwn(slots,row.slot))slots[row.slot]={kind:row.kind,provider:row.provider,url:row.url};
+      return send({ok:true,slots});
+    }catch(e){console.error('Public showcase unavailable',e?.code||e?.name);return send({ok:false,slots},503);}
+  }
+  if(path==='/api/admin/showcase' && req.method==='GET'){
+    if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
+    try{
+      await ensureShowcaseTable();
+      const rows=await DB`SELECT slot,kind,provider,url,enabled,updated_at FROM lumenda_showcase_media ORDER BY slot`;
+      return send({ok:true,media:rows});
+    }catch(e){console.error('Showcase editor read failed',e?.code||e?.name);return send({ok:false,error:'影片設定暫時讀取失敗'},503);}
+  }
+  if(path.startsWith('/api/admin/showcase/')&&req.method==='POST'){
+    if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
+    const slot=path.slice('/api/admin/showcase/'.length);
+    if(!SHOWCASE_SLOTS.includes(slot))return send({ok:false,error:'無效影片位置'},400);
+    try{
+      const body=await parseJSON(req);
+      const kind=String(body.kind||'video');
+      if(typeof body.enabled!=='boolean')err('啟用狀態無效',400);
+      const normalized=normalizeShowcaseUrl(body.url,kind);
+      if(body.enabled&&!normalized.url)err('請先填入影片或動態圖片網址',400);
+      await ensureShowcaseTable();
+      const rows=await DB`INSERT INTO lumenda_showcase_media(slot,kind,provider,url,enabled,updated_at)
+        VALUES(${slot},${kind},${normalized.provider},${normalized.url},${body.enabled},now())
+        ON CONFLICT(slot) DO UPDATE SET kind=EXCLUDED.kind,provider=EXCLUDED.provider,url=EXCLUDED.url,enabled=EXCLUDED.enabled,updated_at=now()
+        RETURNING slot,kind,provider,url,enabled,updated_at`;
+      return send({ok:true,media:rows[0]});
+    }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
+      console.error('Showcase save failed',e?.code||e?.name);return send({ok:false,error:'影片設定暫時未能儲存'},503);}
+  }
+
   if(path==='/api/admin/agents' && req.method==='GET'){
     if(!validAdmin(req)||!validAdminOrigin(req))return send({ok:false,error:'Unauthorized'},401);
     try{
@@ -337,6 +423,7 @@ async function checkDatabaseAtStartup(){
     await ensureTable();
     await ensureMediaTable();
     await ensureAgentsTable();
+    await ensureShowcaseTable();
     const ping=await DB`SELECT 1 AS connected`;
     if(ping[0]?.connected!==1)throw new Error('Invalid database response');
     console.log('LUMENDA_DB_CHECK: CONNECTED; orders and media tables ready');

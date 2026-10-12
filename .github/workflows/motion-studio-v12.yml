@@ -1,0 +1,42 @@
+name: v12 Motion Studio tests (isolated PostgreSQL)
+on:
+  push:
+    branches:
+      - video-slots-v12-2026-10-12
+permissions:
+  contents: read
+jobs:
+  video-cms-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: lumenda_motion_test
+          POSTGRES_USER: audit
+          POSTGRES_PASSWORD: local_video_integration_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U audit -d lumenda_motion_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install and build including v11 smoke tests
+        run: |
+          npm install --omit=dev
+          npm run build
+      - name: Verify three persisted video or animated image settings
+        env:
+          DATABASE_URL: postgres://audit:local_video_integration_only@127.0.0.1:5432/lumenda_motion_test
+        run: node --test integration/showcase-v12.integration.test.mjs
+      - name: Check previous agent referral system for regressions
+        env:
+          DATABASE_URL: postgres://audit:local_video_integration_only@127.0.0.1:5432/lumenda_motion_test
+        run: node --test integration/referrals.integration.test.mjs
