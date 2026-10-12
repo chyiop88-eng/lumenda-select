@@ -287,7 +287,7 @@ function ruleBotReply(message,lang){
   if(/4000|4,000|免運|免邮|shipping|運費|运费|ขนส่ง|vận chuyển/i.test(q))
     return en?'From HK$4,000 of confirmed merchandise, shipping is free. Below this, shipping and destination taxes are quoted separately. Free shipping does not waive taxes.':'經確認商品小計滿 HK$4,000 免運費；未滿要按收件地另報運費及適用稅費。免運唔等於免稅。';
   if(/price|how much|價錢|价格|售價|giá|ราคา|多少|幾錢|多少钱/i.test(q))
-    return en?'Product prices are not published. Please select Facial Treatment Essence or GenOptics Aura Essence and request a quote.':'神仙水同小燈泡暫時冇公開售價。請揀產品提交查詢，店主會核實庫存同正式價錢。';
+    return en?'Facial Treatment Essence 230ml is HK$899 per bottle (about US$114.55 at the 2026-10-12 reference rate), before shipping and applicable taxes. GenOptics Aura Essence still requires a seller quote.':'神仙水 230ml 每支 HK$899（2026-10-12 參考匯率約 US$114.55），未計運費同適用稅費。小燈泡仍然待報價。';
   if(/付款|支付|pay|card|visa|master|paypal|fps|stripe|thanh toán|ชำระ/i.test(q))
     return en?'Enquiries never charge you. After a seller-confirmed quote, you may receive a Stripe or PayPal payment link in your private order page. Payment must be independently verified.':'提交查詢唔會扣款；店主確認報價後，可能喺私人訂單頁提供 Stripe／PayPal 收款連結。付款必須喺收款平台核實。';
   if(/order|訂單|订单|落單|đơn hàng|สั่งซื้อ|確認|confirm|进度/i.test(q))
@@ -486,7 +486,7 @@ async function handle(req) {
               signal:controller.signal,
               body:JSON.stringify({model:process.env.XAI_MODEL||'grok-4.3',max_tokens:220,
                 messages:[
-                  {role:'system',content:'You are the concise multilingual FAQ agent of independent beauty retailer LUMENDA SELECT. Reply in '+lang+'. Only SK-II Facial Treatment Essence 230ml and GenOptics Aura Essence 50ml. Not officially affiliated with SK-II or P&G. Never invent prices, inventory, shipping charges or destination tax amounts. Merchandise subtotal HK$4,000 or more gets free shipping but NOT waived taxes. Below HK$4,000 shipping and applicable taxes require the seller quote. All enquiries must be submitted in the on-site form. Never say an order, payment or stock is confirmed. Do not request or disclose private contact/payment details. Never provide unverified external payment links. Answer under 80 words.'},
+                  {role:'system',content:'You are the concise multilingual FAQ agent of independent beauty retailer LUMENDA SELECT. Reply in '+lang+'. Only SK-II Facial Treatment Essence 230ml and GenOptics Aura Essence 50ml. Not officially affiliated with SK-II or P&G. Facial Treatment Essence 230ml is HK$899 (about US$114.55 for reference); GenOptics Aura Essence price is unconfirmed. Never invent any other prices, inventory, shipping charges or destination tax amounts. Merchandise subtotal HK$4,000 or more gets free shipping but NOT waived taxes. Below HK$4,000 shipping and applicable taxes require the seller quote. All enquiries must be submitted in the on-site form. Never say an order, payment or stock is confirmed. Do not request or disclose private contact/payment details. Never provide unverified external payment links. Answer under 80 words.'},
                   {role:'user',content:message}
                 ]})
             });
