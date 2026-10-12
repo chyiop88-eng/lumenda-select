@@ -5,7 +5,7 @@ import {createHmac} from 'node:crypto';
 import {calculateCart} from '../lib/cart-pricing.mjs';
 import {hkdCents,buildSellerQuote,checkoutAmountCents,stripeCheckoutParams,
   quoteHash,paidStripeSessionValid,verifyStripeEvent} from '../lib/checkout-payments.mjs';
-const products=JSON.parse(readFileSync(new URL('../config/products.json',import.meta.url),'utf8'));
+const products=JSON.parse(readFileSync(new URL('../config/products.json',import.meta.url),'utf8')).map(p=>p.sku==='FTE230'?{...p,price:{baseCurrency:'HKD',baseAmount:899}}:p);
 const one=calculateCart([{sku:'FTE230',qty:1}],products);
 const five=calculateCart([{sku:'FTE230',qty:5}],products);
 const mixed=calculateCart([{sku:'FTE230',qty:2},{sku:'GENOPTICS50',qty:1}],products);

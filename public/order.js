@@ -37,13 +37,21 @@
     if(paypalCaptureNote)section.append(el('p',paypalCaptureNote,'hint'));
     if(paymentReturn==='paypal-cancel')section.append(el('p','已離開 PayPal 付款頁；未有付款確認。','hint'));
 
-    const names={FTE230:'神仙水 Facial Treatment Essence 230ml',GENOPTICS50:'小燈泡 GenOptics Aura Essence 50ml'};
+    const names={FTE230:'神仙水 Facial Treatment Essence 230ml',FTE330:'神仙水 Facial Treatment Essence 330ml',GENOPTICS50:'小燈泡 GenOptics Aura Essence 50ml'};
     section.append(el('p','產品：'+(o.items||[]).map(x=>(names[x.sku]||x.sku)+' × '+x.qty).join('；')));
+    if(o.cart?.pricedSubtotalCny>0){
+      section.append(el('p','人民幣商品標價小計：CNY ¥'+Number(o.cart.pricedSubtotalCny).toFixed(2)));
+      section.append(el('p','此金額係商品人民幣標價，唔係 PayPal 港幣扣款金額。最終 HKD 結帳要由賣家確認匯率、運費及稅費。','hint'));
+    }
     if(o.quote){
       const q=o.quote;
       section.append(el('h3','賣家正式報價（HKD）'));
-      for(const line of q.lines||[])section.append(el('p',line.name+' × '+line.qty+
-        ' · HK$'+Number(line.unitPriceHkd).toFixed(2)+'／支 = HK$'+Number(line.lineSubtotalHkd).toFixed(2)));
+      if(q.fxRateCnyToHkd)section.append(el('p','已確認換算匯率：1 CNY = HK$'+Number(q.fxRateCnyToHkd).toFixed(6)));
+      for(const line of q.lines||[]){
+        const cnyPart=line.listedCurrency==='CNY'?'CNY ¥'+Number(line.unitPriceCny).toFixed(2)+'／支 → ':'';
+        section.append(el('p',line.name+' × '+line.qty+' · '+cnyPart+
+          'HK$'+Number(line.unitPriceHkd).toFixed(2)+'／支 = HK$'+Number(line.lineSubtotalHkd).toFixed(2)));
+      }
       section.append(el('p','商品小計：HK$'+Number(q.subtotalHkd).toFixed(2)),
         el('p','運費：HK$'+Number(q.shippingHkd).toFixed(2)+(q.freeShipping?' · 已符合免運門檻':'')),
         el('p','適用稅費：HK$'+Number(q.taxHkd).toFixed(2)),

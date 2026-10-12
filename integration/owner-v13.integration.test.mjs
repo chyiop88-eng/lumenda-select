@@ -44,17 +44,18 @@ test('v13 CRM, bot, price, private receipt and payment confirmation lifecycle',a
  for(const path of ['/bot.js','/order','/order.js']){
   const r=await fetch(base+path);assert.equal(r.status,200,path);
  }
- const products=await api('/api/health');assert.equal(products.body.uiVersion,'13.0.0');
- assert.deepEqual(products.body.featuredSKUs,['FTE230','GENOPTICS50']);
+ const products=await api('/api/health');assert.equal(products.body.uiVersion,'14.1.0');
+ assert.deepEqual(products.body.featuredSKUs,['FTE230','FTE330','GENOPTICS50']);
  assert.equal(products.body.shippingPolicy.freeShippingThresholdHKD,4000);
  assert.equal(products.body.paymentsLive,false);
  assert.equal(products.body.botMode,'rules');
  const compiled=await (await fetch(base+'/app.js')).text();
- assert.ok(compiled.includes('"baseCurrency":"HKD","baseAmount":899'),'HKD seller price embedded in app');
- assert.ok(compiled.includes('"usdApprox":114.55'),'USD reference embedded in app');
+ assert.ok(compiled.includes('"baseCurrency":"CNY","baseAmount":750'),'CNY 230ml price embedded in app');
+ assert.ok(compiled.includes('"baseCurrency":"CNY","baseAmount":990'),'CNY 330ml price embedded in app');
+ assert.ok(!compiled.includes('"usdApprox":114.55'),'old HKD-derived USD quotation must not remain');
  const quotedByBot=await api('/api/bot/reply',{method:'POST',...j({message:'神仙水 price how much?',language:'en'})});
  assert.equal(quotedByBot.status,200);
- assert.ok(quotedByBot.body.reply.includes('HK$899'),'Bot returns approved HKD selling price');
+ assert.ok(quotedByBot.body.reply.includes('CNY 750'),'Bot returns approved CNY 230ml price');
  const sample={market:'HK',items:[{sku:'FTE230',qty:5}],customer:{
   name:'TEST CUSTOMER ONLY',phone:'91234567',email:'contact@example.test',
   shipping:{region:'香港島',district:'中西區',address1:'Example Street 2',address2:''}
@@ -85,13 +86,13 @@ test('v13 CRM, bot, price, private receipt and payment confirmation lifecycle',a
  assert.equal(badLink.status,400);
  const below=await api(quoteURL,{method:'POST',...j({subtotalHkd:'3800',taxHkd:'20',shippingHkd:'70',paymentLink:''},auth)});
  assert.equal(below.status,400,'Server must reject a manually invented subtotal');
- const over=await api(quoteURL,{method:'POST',...j({subtotalHkd:'4495',taxHkd:'50',shippingHkd:'99',paymentLink:'https://buy.stripe.com/example'},auth)});
+ const over=await api(quoteURL,{method:'POST',...j({fxRateCnyToHkd:'1.2',subtotalHkd:'4500',taxHkd:'50',shippingHkd:'99',paymentLink:'https://buy.stripe.com/example'},auth)});
  assert.equal(over.status,200,JSON.stringify(over.body));
- assert.equal(over.body.quote.shippingHkd,0);assert.equal(over.body.quote.totalHkd,4545);
+ assert.equal(over.body.quote.shippingHkd,0);assert.equal(over.body.quote.totalHkd,4550);
  assert.equal(over.body.paymentStatus,'link_ready');
  const updated=await api('/api/order/lookup',{method:'POST',...j({token:res.body.receiptToken})});
  assert.equal(updated.status,200);assert.equal(updated.body.order.paidVerified,false);
- assert.equal(updated.body.order.quote.totalHkd,4545);
+ assert.equal(updated.body.order.quote.totalHkd,4550);
  const pay='/api/admin/orders/'+res.body.orderId+'/payment';
  const notAllowed=await api(pay,{method:'POST',...j({confirmed:false,transactionReference:'ABCDEF'},auth)});
  assert.equal(notAllowed.status,400);

@@ -1,3 +1,5 @@
+> **Pricing update 2026-10-12:** This file documents the earlier HK$899 checkout regression only and is retained for historical traceability. Current public SK-II Facial Treatment Essence prices are **230ml CNY ¥750** and **330ml CNY ¥990**. Both require a seller-confirmed CNY→HKD exchange rate, and PayPal settlement remains OFF until approved. Refer to [PAYPAL_LIVE_SETUP.md](PAYPAL_LIVE_SETUP.md) and [README.md](README.md) for current deployment policies.
+
 # LUMENDA SELECT · Checkout V14 merchant handover
 
 **Status:** implemented and tested on GitHub feature branch; **not yet deployed to the production Render application**, and **not connected to a real Stripe merchant**. No real charge has been made. Preserve the existing live database and site until an authorized deployment.

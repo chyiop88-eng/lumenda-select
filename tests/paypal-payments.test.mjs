@@ -7,7 +7,7 @@ import {
   buildPayPalOrder,paypalApprovalUrl,validPayPalOrderId,
   validCapturedPayPalOrder,paypalWebhookFields
 } from '../lib/paypal-payments.mjs';
-const products=JSON.parse(readFileSync(new URL('../config/products.json',import.meta.url),'utf8'));
+const products=JSON.parse(readFileSync(new URL('../config/products.json',import.meta.url),'utf8')).map(p=>p.sku==='FTE230'?{...p,price:{baseCurrency:'HKD',baseAmount:899}}:p);
 const cart=calculateCart([{sku:'FTE230',qty:2}],products);
 const quote={...buildSellerQuote(cart,{subtotalHkd:'1798',shippingHkd:'45',taxHkd:'5'}),
   quotedAt:'2026-10-12T00:00:00.000Z'};

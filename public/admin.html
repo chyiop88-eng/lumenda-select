@@ -27,5 +27,5 @@
 <p class="muted">網站客服先用安全規則回覆，並為每張新訂單提供私人進度連結。你日後喺 Render Environment 加 `XAI_API_KEY`、設 `XAI_BOT_ENABLED=true`，先會試用 Grok API（第三方用量可能收費）。</p>
 <p class="muted">線上付款：先由伺服器按購物車計 HKD 正式報價。PayPal 官方 API 可建立核准付款頁，只有正式 Capture 核實金額一致，訂單先會自動顯示已付款。<strong>FPS 同 USDT 必須由店主獨立核對銀行／鏈上入帳</strong>。</p>
 <p class="hint">PayPal 正式收款必須先喺 Render 私密環境連接 PayPal Business Client ID／Secret 同 Webhook ID，並先經過 PayPal Sandbox 真實測試。尚未設定憑證時，網站絕不提供自動 PayPal 扣款。FPS、USDT 同舊有外部收款連結全部需要人工入帳核對；商品金額不得由前台隨便改價。</p>
-<p class="hint">價格：神仙水 HK$899／支，約 US$114.55（2026-10-12 參考匯率）。小燈泡價格仍待確認；HK$4,000 免運門檻由正式港幣商品小計計算，稅費照實際目的地另報。</p></section>
+<p class="hint">新售價：神仙水 230ml 人民幣 ¥750、330ml 人民幣 ¥990／支；小燈泡仍待報價。管理員必須確認人民幣兌港幣匯率，後台先可以計正式港幣單價同 HK$4,000 免運門檻；稅費另報。</p></section>
 <section class="card" style="margin-top:16px"><div class="button-row"><button class="btn" id="refresh">重新讀取訂單</button><button class="btn outline" id="export" disabled>匯出 CSV</button><button class="btn outline" id="logout">登出</button></div><div class="status" id="status" role="status"></div></section><div id="orders"></div></section></main><footer>LUMENDA SELECT · Private admin area</footer><script src="/admin.js" defer></script></body></html>

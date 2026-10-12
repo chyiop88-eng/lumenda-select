@@ -5,13 +5,22 @@
     "tag": "Essence / 神仙水",
     "visual": "ESSENCE",
     "price": {
-      "baseCurrency": "HKD",
-      "baseAmount": 899,
-      "displayCurrency": "USD",
-      "usdApprox": 114.55,
-      "fxRateHkdToUsd": 0.127422,
-      "fxRateDate": "2026-10-12",
-      "amountStatus": "seller_price_usd_reference_excluding_shipping_and_tax"
+      "baseCurrency": "CNY",
+      "baseAmount": 750,
+      "displayCurrency": "CNY",
+      "amountStatus": "seller_price_cny_hkd_settlement_requires_confirmed_fx_quote"
+    }
+  },
+  {
+    "sku": "FTE330",
+    "name": "SK-II Facial Treatment Essence 330ml",
+    "tag": "Essence / 神仙水 · 330ml",
+    "visual": "ESSENCE",
+    "price": {
+      "baseCurrency": "CNY",
+      "baseAmount": 990,
+      "displayCurrency": "CNY",
+      "amountStatus": "seller_price_cny_hkd_settlement_requires_confirmed_fx_quote"
     }
   },
   {

@@ -8,7 +8,7 @@ Status: merchant checkout has been implemented and exercised against a LOCAL MOC
 - USDT: owner supplies correct blockchain network, receive address, exact settlement amount and exchange/expiry terms. Confirm transfer to the correct wallet on the correct network before the admin records chain and transaction hash. Never share wallet seed phrases or private keys. No automatic blockchain watcher or exchange-rate feed is connected.
 - Stripe: unnecessary; disabled by default. Existing optional Stripe code remains isolated behind environment switches.
 
-All merchandise prices, delivery and tax charges are server-calculated and seller-confirmed. SK-II Facial Treatment Essence 230 ml is HK$899 each; GenOptics Aura Essence 50 ml needs an approved unit price. HK$4,000 of confirmed merchandise qualifies for free shipping (not tax exemption). Display USD conversion is NEVER the amount charged to PayPal.
+All merchandise prices, delivery and tax charges are server-calculated and seller-confirmed. SK-II Facial Treatment Essence 230 ml is CNY ¥750 and 330 ml is CNY ¥990. The server stores original RMB values and the seller must approve the CNY→HKD exchange rate used for the final checkout price. Original orders maintain their historical price snapshots. GenOptics Aura Essence 50 ml needs an approved unit price. HK$4,000 of confirmed merchandise qualifies for free shipping (not tax exemption). Display USD conversion is NEVER the amount charged to PayPal.
 
 ## Required one-time merchant actions
 
