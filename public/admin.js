@@ -18,7 +18,7 @@ $('uploadFte').onclick=()=>uploadMedia('fte','fteFile');
 $('uploadAura').onclick=()=>uploadMedia('aura','auraFile');
 $('refresh').onclick=async()=>{await loadOrders();await loadAgents();await loadShowcaseMedia();await loadContacts();};
 $('logout').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST',body:'{}'});}catch{}setLoggedIn(false);show($('loginStatus'),'已登出',true);};
-$('export').onclick=()=>{if(!rows.length)return;const header=['order_id','created_at','market','status','name','phone','email','company','address','payment_method','other_payment','delivery_speed','delivery_note','items','note','referral_code','known_cart_subtotal_hkd','quote_subtotal_hkd','shipping_hkd','tax_hkd','checkout_total_hkd','payment_status','payment_reference'];const matrix=[header,...rows.map(o=>{const c=o.customer||{};return[o.id,o.created_at||o.createdAt,o.market,o.status,c.name,c.phoneIntl||c.phone,c.email,c.company,addressText(o),c.paymentMethod||c.preferredPayment,c.otherPayment,c.deliverySpeed,c.deliveryNote,(o.items||[]).map(i=>i.sku+' x '+i.qty).join('; '),o.note,o.referral_code||'',o.cart_snapshot?.pricedSubtotalHkd??'',o.quote?.subtotalHkd??'',o.quote?.shippingHkd??'',o.quote?.taxHkd??'',o.quote?.totalHkd??'',o.payment_status||'',o.payment_reference||''];})];const csv='\uFEFF'+matrix.map(cols=>cols.map(safeCSV).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lumenda-orders-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);};
+$('export').onclick=()=>{if(!rows.length)return;const header=['order_id','created_at','market','status','name','phone','email','company','address','payment_method','other_payment','delivery_speed','delivery_note','items','note','referral_code','known_cart_subtotal_hkd','listed_cart_subtotal_cny','fx_rate_cny_to_hkd','quote_subtotal_hkd','shipping_hkd','tax_hkd','checkout_total_hkd','payment_status','payment_reference'];const matrix=[header,...rows.map(o=>{const c=o.customer||{};return[o.id,o.created_at||o.createdAt,o.market,o.status,c.name,c.phoneIntl||c.phone,c.email,c.company,addressText(o),c.paymentMethod||c.preferredPayment,c.otherPayment,c.deliverySpeed,c.deliveryNote,(o.items||[]).map(i=>i.sku+' x '+i.qty).join('; '),o.note,o.referral_code||'',o.cart_snapshot?.pricedSubtotalHkd??'',o.cart_snapshot?.pricedSubtotalCny??'',o.quote?.fxRateCnyToHkd??'',o.quote?.subtotalHkd??'',o.quote?.shippingHkd??'',o.quote?.taxHkd??'',o.quote?.totalHkd??'',o.payment_status||'',o.payment_reference||''];})];const csv='\uFEFF'+matrix.map(cols=>cols.map(safeCSV).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lumenda-orders-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);};
 (async()=>{try{await api('/api/admin/session');setLoggedIn(true);await loadOrders();await loadAgents();await loadShowcaseMedia();await loadContacts();}catch{setLoggedIn(false);}})();
 
 
@@ -180,20 +180,25 @@ function makeQuoteEditor(o){
   const wrap=contactElement('section',undefined,'order-quote-panel');
   wrap.append(contactElement('h4','🧾 購物車核對 · 正式報價 · 收款'));
   const cart=o.cart_snapshot||{lines:(o.items||[]).map(item=>({
-    sku:item.sku,qty:item.qty,
-    name:item.sku==='FTE230'?'神仙水 230ml':'小燈泡 50ml',
-    priceStatus:item.sku==='FTE230'?'seller_listed_price':'requires_seller_quote',
-    unitPriceHkd:item.sku==='FTE230'?899:null,
-    lineSubtotalHkd:item.sku==='FTE230'?899*item.qty:null
+    sku:item.sku,name:item.sku+'（舊訂單缺少售價快照）',qty:item.qty,
+    priceStatus:'requires_seller_quote',unitPriceHkd:null,lineSubtotalHkd:null
   }))};
   const lines=cart.lines||[];
+  const hasCny=lines.some(line=>line.priceStatus==='seller_listed_cny');
   const panel=contactElement('div',undefined,'order-cart-breakdown');
-  panel.append(contactElement('strong','商品數量及單價核對（以伺服器計算為準）'));
-  for(const line of lines)panel.append(contactElement('p',line.name+' × '+line.qty+
-    ' · '+(line.priceStatus==='requires_seller_quote'?'待賣家填正式單價':'HK$'+Number(line.unitPriceHkd).toFixed(2)+'／支 · HK$'+Number(line.lineSubtotalHkd).toFixed(2))));
+  panel.append(contactElement('strong','原始商品定價快照 · 確認港幣報價前不得修改人民幣標價'));
+  for(const line of lines){
+    const desc=line.priceStatus==='seller_listed_cny'?
+      'CNY ¥'+Number(line.unitPriceCny).toFixed(2)+'／支 · CNY ¥'+Number(line.lineSubtotalCny).toFixed(2):
+      line.priceStatus==='seller_listed_price'?
+      'HK$'+Number(line.unitPriceHkd).toFixed(2)+'／支 · HK$'+Number(line.lineSubtotalHkd).toFixed(2):
+      '待賣家確認港幣單價';
+    panel.append(contactElement('p',line.name+' × '+line.qty+' · '+desc));
+  }
   wrap.append(panel);
+  if(!o.cart_snapshot)wrap.append(contactElement('p','⚠ 舊訂單缺原始價格快照，為免錯收款，暫停網上重新報價。','hint'));
   const settled=['owner_verified','stripe_paid','paypal_paid'].includes(o.payment_status);
-  const locked=settled||!!o.stripe_session_id||!!o.paypal_order_id;
+  const locked=settled||!!o.stripe_session_id||!!o.paypal_order_id||!o.cart_snapshot;
   const fields=contactElement('div',undefined,'field-grid');
   const controls={};
   const specs=[
@@ -213,6 +218,17 @@ function makeQuoteEditor(o){
     if(locked)ctrl.disabled=true;
     label.append(ctrl);fields.append(label);controls[key]=ctrl;
   }
+  let fxInput=null;
+  if(hasCny){
+    const label=contactElement('label','賣家確認匯率：1 人民幣 CNY = ? 港幣 HKD（最多 6 位小數）','field');
+    fxInput=document.createElement('input');fxInput.type='number';fxInput.min='0.1';
+    fxInput.max='5';fxInput.step='0.000001';fxInput.inputMode='decimal';
+    fxInput.placeholder='必填：經賣家確認嘅 CNY → HKD 匯率';
+    fxInput.value=String(o.quote?.fxRateCnyToHkd??'');
+    fxInput.disabled=locked;
+    label.append(fxInput);fields.prepend(label);
+    fields.prepend(contactElement('p','人民幣商品單價不可改；港幣結算單價由你輸入嘅匯率自動計算，唔會使用未確認嘅即時匯率。','hint'));
+  }
   const prices={};
   for(const line of lines.filter(x=>x.priceStatus==='requires_seller_quote')){
     const label=contactElement('label',line.name+'／支正式單價 HKD（數量 '+line.qty+'）','field');
@@ -223,24 +239,40 @@ function makeQuoteEditor(o){
   }
   const summary=contactElement('p','','quote-summary');
   function updateQuote(){
-    let subtotal=0,pending=false;
+    let subtotalCents=0,pending=false;
+    const rawRate=fxInput?.value.trim()||'';
+    const rateMicro=rawRate && /^(?:[0-4](?:\\.\\d{1,6})?|5(?:\\.0{1,6})?)$/.test(rawRate)?
+      Math.round(Number(rawRate)*1000000):0;
+    if(hasCny&&(rateMicro<100000||rateMicro>5000000))pending=true;
     for(const line of lines){
-      const unit=line.priceStatus==='requires_seller_quote'?Number(prices[line.sku]?.value):Number(line.unitPriceHkd);
-      if(!(unit>0)||!Number.isFinite(unit)){pending=true;continue;}
-      subtotal+=Math.round(unit*100)*line.qty;
+      let unitCents=0;
+      if(line.priceStatus==='seller_listed_cny') {
+        if(!rateMicro||pending)continue;
+        unitCents=Math.round(Math.round(Number(line.unitPriceCny)*100)*rateMicro/1000000);
+      }else if(line.priceStatus==='requires_seller_quote'){
+        const raw=prices[line.sku]?.value;
+        if(!raw||!/^(?:\\d{1,8})(?:\\.\\d{1,2})?$/.test(raw)){pending=true;continue;}
+        unitCents=Math.round(Number(raw)*100);
+      }else unitCents=Math.round(Number(line.unitPriceHkd)*100);
+      if(!(unitCents>0)||!Number.isSafeInteger(unitCents)){pending=true;continue;}
+      subtotalCents+=unitCents*line.qty;
     }
-    const money=subtotal/100;
-    controls.subtotalHkd.value=pending?'':money.toFixed(2);
-    const free=!pending&&subtotal>=400000;
-    if(!locked){controls.shippingHkd.disabled=free;if(free)controls.shippingHkd.value='0';}
+    const subtotalHkd=subtotalCents/100;
+    controls.subtotalHkd.value=pending?'':subtotalHkd.toFixed(2);
+    const free=!pending&&subtotalCents>=400000;
+    if(!locked){
+      controls.shippingHkd.disabled=free;
+      if(free)controls.shippingHkd.value='0';
+    }
     const shipping=free?0:Number(controls.shippingHkd.value||0);
     const tax=Number(controls.taxHkd.value||0);
-    summary.textContent=pending?'⚠ 請先填齊所有待報價商品嘅每支單價。':
-      '商品 HK$'+money.toFixed(2)+(free?' · 免運費':' · 未達 HK$4,000 免運門檻')+
+    summary.textContent=pending?'⚠ 請先輸入已確認嘅 CNY→HKD 匯率，以及所有待報價商品單價。':
+      '商品 HK$'+subtotalHkd.toFixed(2)+(free?' · 免運費':' · 未達 HK$4,000 免運門檻')+
       ' + 運費 HK$'+shipping.toFixed(2)+' + 稅費 HK$'+tax.toFixed(2)+
-      ' = 正式應付 HK$'+(money+shipping+tax).toFixed(2);
+      ' = 正式應付 HK$'+(subtotalHkd+shipping+tax).toFixed(2);
   }
   for(const ctrl of Object.values(prices))ctrl.addEventListener('input',updateQuote);
+  if(fxInput)fxInput.addEventListener('input',updateQuote);
   for(const key of ['shippingHkd','taxHkd'])controls[key].addEventListener('input',updateQuote);
   updateQuote();
   const actions=contactElement('div',undefined,'button-row');
@@ -251,6 +283,7 @@ function makeQuoteEditor(o){
       try{
         const payload=Object.fromEntries(Object.entries(controls).map(([key,input])=>[key,input.value]));
         payload.unitPricesHkd=Object.fromEntries(Object.entries(prices).map(([sku,input])=>[sku,input.value]));
+        if(fxInput)payload.fxRateCnyToHkd=fxInput.value;
         const result=await api('/api/admin/orders/'+encodeURIComponent(o.id)+'/quote',{method:'POST',body:JSON.stringify(payload)});
         show($('status'),'✅ '+o.id+' 核對成功 · 正式應付 HK$'+Number(result.quote.totalHkd).toFixed(2)+
           (payload.paymentLink?' · 已設定獨立付款連結':' · 如已啟用 PayPal，客人可用私人訂單連結結帳'),true);
