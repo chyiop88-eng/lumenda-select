@@ -1,0 +1,11 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const markets = JSON.parse(readFileSync(join(root,'config/markets.json'),'utf8'));
+const products = JSON.parse(readFileSync(join(root,'config/products.json'),'utf8'));
+let source=readFileSync(join(root,'public/app.template.js'),'utf8');
+if(!source.includes('__MARKETS_JSON__')||!source.includes('__PRODUCTS_JSON__')) throw new Error('Unknown app template');
+source=source.replace('__MARKETS_JSON__',JSON.stringify(markets)).replace('__PRODUCTS_JSON__',JSON.stringify(products));
+writeFileSync(join(root,'public/app.js'),source,'utf8');
+console.log('Browser app generated with',products.length,'products and',Object.keys(markets).length,'markets');

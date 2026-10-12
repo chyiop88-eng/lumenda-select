@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="description" content="LUMENDA SELECT：跨境精選護膚品，六地訂單查詢。獨立美妝零售商。">
+<title>LUMENDA SELECT｜跨境美妝精選</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header><nav><div class="brand">LUMENDA SELECT<small data-i18n="brandSub">Curated beauty · Independent retailer</small></div><div class="nav-controls"><div class="country-picker"><label for="market" data-i18n="marketLabel">收件國家／地區</label><select id="market"></select></div><div class="country-picker"><label for="language" data-i18n="languageLabel">網站語言</label><select id="language" aria-label="Website language"></select></div></div></nav>
+<div class="hero"><div class="overline" data-i18n="heroEyebrow">YOUR BEAUTY, YOUR RITUAL</div><h1 data-i18n="heroTitle">Skincare, thoughtfully selected.</h1><p data-i18n="heroDescription">由亞洲六個市場出發，挑選值得信賴嘅護膚體驗。查詢 SK-II 商品庫存、價格同配送，集中一個網站處理。</p><a class="cta" href="#products" data-i18n="explore">查看精選產品 ↓</a></div></header>
+<div class="disclaimer" data-i18n="disclaimer">訂單申請現已開放；所有商品價格、現貨、運費、稅項及付款資料均須賣家確認。網站暫不會直接扣款。</div>
+<main>
+<section class="wrap campaign-showcase" id="campaigns"><div class="campaign-copy"><span class="pill" data-i18n="campaignEyebrow">FEATURED CAMPAIGNS</span><h2 data-i18n="campaignTitle">SK-II 熱門護膚精選</h2><p class="muted" data-i18n="campaignDescription">人氣神仙水與小燈泡，兩款 SK-II 護膚產品。</p></div><div class="campaign-grid"><figure class="campaign-card"><img src="/media/fte" width="1122" height="1402" alt="SK-II Facial Treatment Essence promotional artwork" loading="lazy" decoding="async"><figcaption><strong>Facial Treatment Essence</strong><span>Signature Pitera™ essence · 神仙水</span></figcaption></figure><figure class="campaign-card"><img src="/media/aura" width="1122" height="1402" alt="SK-II GenOptics Aura Essence promotional artwork" loading="lazy" decoding="async"><figcaption><strong>GenOptics Aura Essence</strong><span>Brightening serum · 小燈泡</span></figcaption></figure></div><p class="muted campaign-legal" data-i18n="campaignArtNote">AI 生成之原創宣傳示意圖，並非 SK-II 官方廣告或產品實拍；產品外觀及文字請以實物資料為準。</p></section>
+<section class="wrap" id="products"><span class="pill" data-i18n="curated">THE CURATED EDIT</span><h2 data-i18n="productHeading">SK-II 精選護膚</h2><p class="muted" data-i18n="productNote">商品圖片為裝飾性示意，並非產品實拍；實際款式、版本、供應及售價均待確認。</p><div class="grid" id="productsGrid"></div></section>
+<section class="wrap" id="checkout"><span class="pill" data-i18n="enquiry">ORDER ENQUIRY</span><h2 data-i18n="checkoutHeading">結帳資料 · 六地送貨</h2><div class="checkout"><form id="orderForm" class="card" novalidate>
+<div class="section-heading"><b>1</b><h3 data-i18n="sectionOne">收件人及聯絡方法</h3></div>
+<div class="field-grid">
+<div class="field"><label for="recipient"><span data-i18n="recipient">收件人全名</span> <span class="required">*</span></label><input id="recipient" name="recipient" required maxlength="100" autocomplete="name" data-i18n-placeholder="recipientPlaceholder" placeholder="請填真實收件姓名"></div>
+<div class="field"><label for="phone"><span data-i18n="phone">手機號碼</span> <span class="required">*</span></label><div class="country-phone"><div class="dial" id="dial">+852</div><input id="phone" name="phone" required maxlength="22" inputmode="tel" autocomplete="tel-national" data-i18n-placeholder="phonePlaceholder" placeholder="例如 91234567"></div><span class="hint" data-i18n="phoneHint">請填當地手機號碼，系統會記錄國際區號</span></div>
+<div class="field"><label for="email" data-i18n="email">電子郵件（選填）</label><input id="email" name="email" type="email" maxlength="140" autocomplete="email" placeholder="email@example.com"></div>
+<div class="field"><label for="contactMethod" data-i18n="contactMethod">聯絡方式</label><select id="contactMethod" name="contactMethod"><option value="WhatsApp">WhatsApp</option><option value="LINE">LINE</option><option value="WeChat">WeChat</option><option value="Zalo">Zalo</option><option value="Phone">電話</option><option value="Email">電郵</option></select></div>
+<div class="field"><label for="contactId" data-i18n="contactId">WhatsApp / LINE / 微信 / Zalo ID（選填）</label><input id="contactId" name="contactId" maxlength="100" data-i18n-placeholder="contactIdPlaceholder" placeholder="方便賣家聯絡"></div>
+<div class="field"><label for="company" data-i18n="company">公司名稱（選填）</label><input id="company" name="company" maxlength="120" data-i18n-placeholder="companyPlaceholder" placeholder="如寄公司地址"></div>
+</div>
+<div class="section-heading"><b>2</b><h3 data-i18n="sectionTwo">配送地址及物流資料</h3></div>
+<div class="notice" id="countryHint" style="margin-bottom:15px"></div>
+<div class="field-grid" id="addressFields"></div>
+<div class="field-grid" style="margin-top:14px"><div class="field"><label for="deliverySpeed" data-i18n="deliverySpeed">運送方式</label><select id="deliverySpeed" name="deliverySpeed"><option value="standard" data-i18n="standard">標準配送（待報價）</option><option value="express" data-i18n="express">快遞／急件查詢</option></select></div><div class="field"><label for="deliveryNote" data-i18n="deliveryNote">物流備註（選填）</label><input id="deliveryNote" maxlength="300" name="deliveryNote" data-i18n-placeholder="deliveryNotePlaceholder" placeholder="例：送貨時間、門禁、樓宇指示"></div></div>
+<div class="section-heading"><b>3</b><h3 data-i18n="sectionThree">希望使用嘅付款方式</h3></div>
+<div class="field-grid"><div class="field wide"><label for="paymentMethod"><span data-i18n="paymentPreference">付款方式偏好</span> <span class="required">*</span></label><select id="paymentMethod" name="paymentMethod" required></select><div class="hint" id="paymentHint"></div></div><div class="field wide" id="otherPaymentWrap" hidden><label for="otherPayment"><span data-i18n="otherPayment">其他付款方式／問題</span> <span class="required">*</span></label><input id="otherPayment" name="otherPayment" maxlength="200" data-i18n-placeholder="otherPaymentPlaceholder" placeholder="例如其他銀行轉帳、電子錢包或付款查詢"></div><div class="field wide"><label for="orderNote" data-i18n="orderNote">訂單備註（選填）</label><textarea id="orderNote" name="orderNote" rows="3" maxlength="500" data-i18n-placeholder="orderNotePlaceholder" placeholder="貨品規格、數量或其他要求"></textarea></div></div>
+<p class="notice" style="margin:19px 0" data-i18n="paymentDisclosure">選擇 FPS、PayPal 或 USDT 只係表達付款偏好，唔代表已經付款。賣家確認正式報價、合規性及帳戶資料後，先會提供實際付款指示。請勿填入銀行密碼、錢包私鑰或信用卡號碼。</p>
+<div class="check"><input id="privacy" name="privacy" type="checkbox" required><label for="privacy"><span data-i18n="consent">我同意賣家使用我填寫嘅姓名、電話及地址處理訂單、安排配送同聯絡我；我明白網站係獨立賣家，唔係 SK-II 官方，以及提交唔代表付款成功。</span> <span class="required">*</span></label></div>
+<input type="text" name="website" id="website" style="position:absolute;left:-9999px" tabindex="-1" autocomplete="off" aria-hidden="true">
+<button type="submit" class="btn" id="submitOrder" style="width:100%;margin-top:20px" data-i18n="submit">提交訂單申請 · 不會扣款</button><div id="result" role="status" aria-live="polite" class="status"></div>
+</form>
+<aside class="card"><h3><span data-i18n="cartTitle">你嘅購物車</span> <span id="cartCount" class="pill">0</span></h3><div id="cartLines"><p class="muted" data-i18n="cartEmpty">尚未選擇商品</p></div><p style="margin-top:20px"><strong data-i18n="finalPrice">最終價錢：待賣家報價</strong></p><p class="muted" id="currencyMessage">結算參考幣別：HKD</p><hr style="border:0;border-top:1px solid #eadde1"><p class="hint" data-i18n="cartNotice">此網站僅記錄訂單資料及付款偏好，暫無即時收款。當你收到正式付款通知前，請勿轉帳。</p></aside>
+</div></section>
+</main>
+<footer><strong>LUMENDA SELECT</strong><p><span data-i18n="footerRetailer">Independent Beauty Retailer · 護膚精選零售商</span><br><span data-i18n="footerAffiliation">SK-II 品牌屬其權利人所有，本網站與 SK-II、P&G 並無官方授權或隸屬關係之聲明。</span></p><p data-i18n="footerTerms">退換貨、庫存與各地稅項、運送條款以人工確認之正式交易條款為準；正式付款功能尚未開通。</p></footer>
+<script src="/i18n.js" defer></script><script src="/app.js" defer></script><noscript><p class="noscript" data-i18n="noscript">請開啟 JavaScript 以填寫物流資料。</p></noscript>
+</body></html>

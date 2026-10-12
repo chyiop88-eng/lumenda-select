@@ -1,0 +1,17 @@
+{
+  "name": "lumenda-select-render",
+  "version": "9.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test:smoke": "node --test tests/*.test.mjs",
+    "build": "node scripts/build_frontend.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "postgres": "^3.4.7"
+  }
+}

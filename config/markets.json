@@ -1,0 +1,72 @@
+{
+  "CN": {
+    "name": "中國大陸", "flag": "🇨🇳", "currency": "CNY", "dial": "+86",
+    "addressFields": [
+      {"key":"province","label":"省／自治區／直轄市", "required":true},
+      {"key":"city","label":"城市／地級市", "required":true},
+      {"key":"district","label":"區／縣", "required":true},
+      {"key":"address1","label":"街道、路名及門牌號碼", "required":true},
+      {"key":"address2","label":"樓宇、樓層、單位（如有）", "required":false}
+    ],
+    "postcode":{"label":"郵政編碼（6 位）","required":true,"pattern":"^[0-9]{6}$","example":"100000"},
+    "payments":["PAYPAL","OTHER"]
+  },
+  "HK": {
+    "name": "香港", "flag": "🇭🇰", "currency": "HKD", "dial": "+852",
+    "addressFields": [
+      {"key":"region","label":"地區（港島／九龍／新界）", "required":true,"options":["香港島","九龍","新界"]},
+      {"key":"district","label":"地區／分區", "required":true},
+      {"key":"address1","label":"街道、門牌號碼、屋苑／大廈", "required":true},
+      {"key":"address2","label":"座數／樓層／單位（如適用）", "required":false}
+    ],
+    "postcode":{"label":"郵政編碼（香港一般不使用）","required":false,"pattern":"^.{0,12}$","example":"可留空"},
+    "payments":["FPS","PAYPAL","USDT","OTHER"]
+  },
+  "TW": {
+    "name": "台灣", "flag": "🇹🇼", "currency": "TWD", "dial": "+886",
+    "addressFields": [
+      {"key":"province","label":"縣／市", "required":true},
+      {"key":"district","label":"區／鄉／鎮／市", "required":true},
+      {"key":"address1","label":"路街、段、巷、弄、號", "required":true},
+      {"key":"address2","label":"樓層／室／附加地址", "required":false}
+    ],
+    "postcode":{"label":"郵遞區號（建議 3+3 碼）","required":true,"pattern":"^[0-9]{3}([0-9]{3})?$","example":"100006 或 100"},
+    "payments":["PAYPAL","USDT","OTHER"]
+  },
+  "MY": {
+    "name": "Malaysia 馬來西亞", "flag": "🇲🇾", "currency": "MYR", "dial": "+60",
+    "addressFields": [
+      {"key":"province","label":"State / 州屬", "required":true},
+      {"key":"city","label":"City / Town 城市", "required":true},
+      {"key":"district","label":"District / Area 區域（如適用）", "required":false},
+      {"key":"address1","label":"Street, house no. / 街道門牌", "required":true},
+      {"key":"address2","label":"Unit / Building 公寓／單位", "required":false}
+    ],
+    "postcode":{"label":"Poskod / 郵編（5 位）","required":true,"pattern":"^[0-9]{5}$","example":"50450"},
+    "payments":["PAYPAL","USDT","OTHER"]
+  },
+  "VN": {
+    "name": "Việt Nam 越南", "flag": "🇻🇳", "currency": "VND", "dial": "+84",
+    "addressFields": [
+      {"key":"province","label":"Tỉnh / Thành phố 省／直轄市", "required":true},
+      {"key":"district","label":"Quận / Huyện 區／縣（按當地地址填）", "required":false},
+      {"key":"subdistrict","label":"Phường / Xã 坊／社", "required":true},
+      {"key":"address1","label":"Số nhà, đường 門牌／街道", "required":true},
+      {"key":"address2","label":"Tòa nhà / Căn hộ 大廈／單位", "required":false}
+    ],
+    "postcode":{"label":"Mã bưu chính 郵編（如有）","required":false,"pattern":"^([0-9]{5})?$","example":"5 位數或留空"},
+    "payments":["PAYPAL","OTHER"]
+  },
+  "TH": {
+    "name": "ประเทศไทย 泰國", "flag": "🇹🇭", "currency": "THB", "dial": "+66",
+    "addressFields": [
+      {"key":"province","label":"จังหวัด / Province 府／省", "required":true},
+      {"key":"district","label":"อำเภอ / เขต District 縣／區", "required":true},
+      {"key":"subdistrict","label":"ตำบล / แขวง Subdistrict 分區", "required":true},
+      {"key":"address1","label":"บ้านเลขที่ ถนน House no. / Street 門牌街道", "required":true},
+      {"key":"address2","label":"หมู่บ้าน / Unit 屋苑／單位", "required":false}
+    ],
+    "postcode":{"label":"รหัสไปรษณีย์ 郵編（5 位）","required":true,"pattern":"^[0-9]{5}$","example":"10110"},
+    "payments":["PAYPAL","OTHER"]
+  }
+}
