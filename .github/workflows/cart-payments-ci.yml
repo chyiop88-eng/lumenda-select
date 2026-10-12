@@ -39,6 +39,10 @@ jobs:
         env:
           DATABASE_URL: postgres://checkout_audit:test_only_isolated_not_production@127.0.0.1:5432/lumenda_checkout_test
         run: node --test integration/cart-stripe.integration.test.mjs
+      - name: Verify isolated PostgreSQL PayPal Orders v2 and FPS / USDT lifecycle
+        env:
+          DATABASE_URL: postgres://checkout_audit:test_only_isolated_not_production@127.0.0.1:5432/lumenda_checkout_test
+        run: node --test integration/paypal-checkout.integration.test.mjs
       - name: Regression - owner CRM, manual PayPal links and receipts
         env:
           DATABASE_URL: postgres://checkout_audit:test_only_isolated_not_production@127.0.0.1:5432/lumenda_checkout_test
