@@ -47,7 +47,7 @@ test('Stripe form contains exclusively server-quoted cents with binding metadata
   assert.equal(fingerprint,quoteHash(orderId,quote));
   const signedSession={
     id:'cs_test_fixture1234',object:'checkout.session',mode:'payment',client_reference_id:orderId,
-    currency:'hkd',amount_total:94400,payment_status:'paid',livemode:false,
+    currency:'hkd',amount_total:94400,payment_status:'paid',status:'complete',livemode:false,
     metadata:{order_id:orderId,quote_hash:fingerprint}
   };
   assert.equal(paidStripeSessionValid(signedSession,{orderId,quote,sessionId:signedSession.id,mode:'test'}),true);
