@@ -1,20 +1,67 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><meta name="description" content="LUMENDA SELECT：跨境精選護膚品，六地訂單查詢。獨立美妝零售商。">
-<title>LUMENDA SELECT｜跨境美妝精選</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#310d1d">
+<meta name="description" content="LUMENDA SELECT 獨立美妝零售商。SK-II 神仙水與小燈泡明星產品訂單查詢。六地配送，滿港幣 HK$4,000 免運費，條款適用。">
+<title>LUMENDA SELECT｜SK-II 明星產品</title>
+<link rel="icon" type="image/png" href="/lumenda-favicon.png">
+<link rel="preload" as="image" href="/campaign-facial-treatment-essence-hd-v7.webp?v=10-rose">
 <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
-<header><nav><div class="brand">LUMENDA SELECT<small data-i18n="brandSub">Curated beauty · Independent retailer</small></div><div class="nav-controls"><div class="country-picker"><label for="market" data-i18n="marketLabel">收件國家／地區</label><select id="market"></select></div><div class="country-picker"><label for="language" data-i18n="languageLabel">網站語言</label><select id="language" aria-label="Website language"></select></div></div></nav>
-<div class="hero"><div class="overline" data-i18n="heroEyebrow">YOUR BEAUTY, YOUR RITUAL</div><h1 data-i18n="heroTitle">Skincare, thoughtfully selected.</h1><p data-i18n="heroDescription">由亞洲六個市場出發，挑選值得信賴嘅護膚體驗。查詢 SK-II 商品庫存、價格同配送，集中一個網站處理。</p><a class="cta" href="#products" data-i18n="explore">查看精選產品 ↓</a></div></header>
-<div class="disclaimer" data-i18n="disclaimer">訂單申請現已開放；所有商品價格、現貨、運費、稅項及付款資料均須賣家確認。網站暫不會直接扣款。</div>
-<div class="shipping-banner" role="note"><strong data-i18n="shippingHeadline">滿 HK$4,000 免運費</strong><span data-i18n="shippingDetails">以確認嘅港幣商品小計計算。未滿 HK$4,000，運費及適用稅費按收件地另行報價；免運不等於免稅。商品價格及免運資格以最終報價為準。</span></div>
+<body class="rose-aura-site">
+<div class="ambient" aria-hidden="true"><span class="ambient__orb orb-one"></span><span class="ambient__orb orb-two"></span><span class="ambient__orb orb-three"></span><span class="ambient__grain"></span></div>
+<header class="site-header">
+  <nav class="site-nav shell" aria-label="Primary navigation">
+    <a class="brand-link" href="#top" aria-label="LUMENDA SELECT home">
+      <span class="brand-icon" aria-hidden="true">✧</span><span class="brand-wordmark">LUMENDA <em>SELECT</em><small data-i18n="brandSub">精選美妝 · 獨立零售商</small></span>
+    </a>
+    <div class="navigation-links"><a href="#top">HOME</a><a href="#campaigns" data-i18n="campaignEyebrow">明星精選</a><a href="#products" data-i18n="productHeading">SK-II 明星產品</a><a href="#checkout" data-i18n="enquiry">接單查詢</a></div>
+    <div class="nav-controls"><div class="country-picker"><label for="market" data-i18n="marketLabel">收件國家／地區</label><select id="market"></select></div><div class="country-picker"><label for="language" data-i18n="languageLabel">網站語言</label><select id="language" aria-label="Website language"></select></div></div>
+  </nav>
+</header>
+<div class="shipping-banner" role="note"><span class="shipping-banner__spark" aria-hidden="true">✦</span><strong data-i18n="shippingHeadline">滿 HK$4,000 免運費</strong><span class="shipping-banner__info" data-i18n="shippingDetails">按賣家確認嘅港幣商品小計計算；未滿 HK$4,000，運費與適用稅費按收件地另行報價。免運不等於免稅。</span></div>
 <main>
-<section class="wrap campaign-showcase" id="campaigns"><div class="campaign-copy"><span class="pill" data-i18n="campaignEyebrow">FEATURED CAMPAIGNS</span><h2 data-i18n="campaignTitle">SK-II 熱門護膚精選</h2><p class="muted" data-i18n="campaignDescription">人氣神仙水與小燈泡，兩款 SK-II 護膚產品。</p></div><div class="campaign-grid"><figure class="campaign-card"><img src="/media/fte" width="1122" height="1402" alt="SK-II Facial Treatment Essence promotional artwork" loading="lazy" decoding="async"><figcaption><strong>Facial Treatment Essence</strong><span>Signature Pitera™ essence · 神仙水</span></figcaption></figure><figure class="campaign-card"><img src="/media/aura" width="1122" height="1402" alt="SK-II GenOptics Aura Essence promotional artwork" loading="lazy" decoding="async"><figcaption><strong>GenOptics Aura Essence</strong><span>Brightening serum · 小燈泡</span></figcaption></figure></div><p class="muted campaign-legal" data-i18n="campaignArtNote">AI 生成之原創宣傳示意圖，並非 SK-II 官方廣告或產品實拍；產品外觀及文字請以實物資料為準。</p></section>
-<section class="wrap" id="products"><span class="pill" data-i18n="curated">THE CURATED EDIT</span><h2 data-i18n="productHeading">SK-II 明星產品 · 專注接單</h2><p class="muted" data-i18n="productNote">只接受神仙水與小燈泡訂單查詢；規格、供應及價格以確認報價為準。</p><div class="grid" id="productsGrid"></div></section>
-<section class="wrap" id="checkout"><span class="pill" data-i18n="enquiry">ORDER ENQUIRY</span><h2 data-i18n="checkoutHeading">結帳資料 · 六地送貨</h2><div class="checkout"><form id="orderForm" class="card" novalidate>
+<section class="hero-premiere" id="top" aria-label="LUMENDA SELECT SK-II selections">
+  <div class="hero__haze" aria-hidden="true"></div><div class="hero__stardust" aria-hidden="true"></div>
+  <div class="shell hero__grid">
+    <div class="hero__content reveal">
+      <div class="hero__topline"><span class="eyebrow">LUMENDA SELECT</span><span class="hero__line"></span><span class="eyebrow" data-i18n="campaignEyebrow">STAR ESSENTIALS</span></div>
+      <p class="hero__index">01 <span>—</span> 02 &nbsp; · &nbsp; THE RADIANCE EDITION</p>
+      <h1 data-i18n="heroTitle">兩款經典，專注每一滴光采</h1>
+      <div class="hero__spark-symbol" aria-hidden="true">✧</div>
+      <p class="hero__description" data-i18n="heroDescription">從神仙水到小燈泡，兩款 SK-II 護膚焦點，為你呈獻精選護膚之選。</p>
+      <div class="hero__cta-group"><a class="luxe-button" href="#products"><span data-i18n="explore">探索明星產品</span><span aria-hidden="true">↗</span></a><a class="text-link" href="#checkout"><span data-i18n="enquiry">立即接單查詢</span><span aria-hidden="true">→</span></a></div>
+      <div class="hero__essentials"><span class="hero__essential"><i aria-hidden="true">✦</i> FACIAL TREATMENT ESSENCE</span><span class="hero__essential"><i aria-hidden="true">✧</i> GENOPTICS AURA ESSENCE</span></div>
+    </div>
+    <div class="hero__gallery reveal" aria-label="兩款主打 SK-II 明星護膚產品宣傳設計">
+      <div class="hero__halo" aria-hidden="true"></div>
+      <div class="hero__light-ring hero__light-ring--one" aria-hidden="true"></div><div class="hero__light-ring hero__light-ring--two" aria-hidden="true"></div>
+      <figure class="hero__frame hero__frame--first"><img src="/campaign-facial-treatment-essence-hd-v7.webp?v=10-rose" width="1122" height="1402" alt="SK-II Facial Treatment Essence 神仙水概念宣傳圖，模特及水光視覺" fetchpriority="high" decoding="async"><figcaption>01 / SK-II ESSENCE</figcaption></figure>
+      <figure class="hero__frame hero__frame--second"><img src="/campaign-genoptics-aura-essence-hd-v7.webp?v=10-rose" width="1122" height="1402" alt="SK-II GenOptics Aura Essence 小燈泡概念宣傳圖，模特及水光視覺" decoding="async"><figcaption>02 / AURA ESSENCE</figcaption></figure>
+      <span class="hero__twinkle hero__twinkle--one" aria-hidden="true">✧</span><span class="hero__twinkle hero__twinkle--two" aria-hidden="true">✦</span><span class="hero__twinkle hero__twinkle--three" aria-hidden="true">✧</span>
+    </div>
+  </div>
+  <div class="hero__bottom-line" aria-hidden="true"><span>RADIANCE</span><span class="hero__bottom-glyph">✧</span><span>SELECTED WITH CARE</span></div>
+</section>
+<div class="trust-ribbon" aria-label="Store information"><div class="shell trust-ribbon__inner"><span><i aria-hidden="true">✧</i> LUMENDA SELECT</span><span><i aria-hidden="true">◇</i> TWO SIGNATURE ESSENTIALS</span><span><i aria-hidden="true">✦</i> HK$4,000 FREE SHIPPING*</span></div></div>
+<section class="campaign-showcase shell reveal" id="campaigns">
+ <div class="section-head"><span class="section-head__line" aria-hidden="true"></span><div><p class="eyebrow" data-i18n="campaignEyebrow">SIGNATURE CAMPAIGNS</p><h2 data-i18n="campaignTitle">SK-II 人氣護膚精選</h2><p data-i18n="campaignDescription">兩款經典人氣之選：神仙水與小燈泡。</p></div><span class="section-head__line" aria-hidden="true"></span></div>
+ <div class="campaign-grid">
+  <figure class="campaign-card campaign-card--fte"><div class="campaign-card__media"><img src="/media/fte" width="1122" height="1402" loading="lazy" decoding="async" alt="神仙水 Facial Treatment Essence 官方品牌以外之 AI 概念宣傳視覺"><span class="campaign-card__shimmer" aria-hidden="true"></span></div><figcaption><div class="campaign-card__number">01 / SIGNATURE ESSENCE</div><strong>Facial Treatment Essence</strong><span>神仙水 · 230ml</span><a href="#products" class="campaign-card__link"><span data-i18n="explore">查看明星產品</span> <span aria-hidden="true">↗</span></a></figcaption></figure>
+  <figure class="campaign-card campaign-card--aura"><div class="campaign-card__media"><img src="/media/aura" width="1122" height="1402" loading="lazy" decoding="async" alt="小燈泡 GenOptics Aura Essence 官方品牌以外之 AI 概念宣傳視覺"><span class="campaign-card__shimmer" aria-hidden="true"></span></div><figcaption><div class="campaign-card__number">02 / RADIANCE ESSENCE</div><strong>GenOptics Aura Essence</strong><span>小燈泡 · 50ml</span><a href="#products" class="campaign-card__link"><span data-i18n="explore">查看明星產品</span> <span aria-hidden="true">↗</span></a></figcaption></figure>
+ </div>
+ <p class="campaign-legal" data-i18n="campaignArtNote">宣傳圖為 AI 生成概念圖，並非 SK-II 官方廣告或產品實拍；產品外觀、規格及功效資訊以實際商品資料為準。</p>
+</section>
+<section class="products-stage reveal" id="products">
+ <div class="shell products-stage__inner"><div class="section-head section-head--products"><span class="section-head__line" aria-hidden="true"></span><div><p class="eyebrow" data-i18n="curated">OUR SELECTION</p><h2 data-i18n="productHeading">SK-II 明星產品 · 立即查詢</h2><p data-i18n="productNote">只接受神仙水與小燈泡兩款明星產品接單，供應及價格以賣家最終確認為準。</p></div><span class="section-head__line" aria-hidden="true"></span></div>
+ <div class="grid" id="productsGrid"></div></div>
+</section>
+<section class="checkout-stage" id="checkout">
+ <div class="shell"><div class="section-head section-head--checkout reveal"><span class="section-head__line" aria-hidden="true"></span><div><p class="eyebrow" data-i18n="enquiry">PERSONAL ORDER ENQUIRY</p><h2 data-i18n="checkoutHeading">結帳資料 · 六地配送</h2><p class="checkout-stage__caption">LUMENDA SELECT · EXCLUSIVE ENQUIRY SERVICE</p></div><span class="section-head__line" aria-hidden="true"></span></div>
+ <div class="checkout"><form id="orderForm" class="card" novalidate>
 <div class="section-heading"><b>1</b><h3 data-i18n="sectionOne">收件人及聯絡方法</h3></div>
 <div class="field-grid">
 <div class="field"><label for="recipient"><span data-i18n="recipient">收件人全名</span> <span class="required">*</span></label><input id="recipient" name="recipient" required maxlength="100" autocomplete="name" data-i18n-placeholder="recipientPlaceholder" placeholder="請填真實收件姓名"></div>
@@ -35,9 +82,13 @@
 <input type="text" name="website" id="website" style="position:absolute;left:-9999px" tabindex="-1" autocomplete="off" aria-hidden="true">
 <button type="submit" class="btn" id="submitOrder" style="width:100%;margin-top:20px" data-i18n="submit">提交訂單申請 · 不會扣款</button><div id="result" role="status" aria-live="polite" class="status"></div>
 </form>
-<aside class="card"><h3><span data-i18n="cartTitle">你嘅購物車</span> <span id="cartCount" class="pill">0</span></h3><div id="cartLines"><p class="muted" data-i18n="cartEmpty">尚未選擇商品</p></div><p style="margin-top:20px"><strong data-i18n="finalPrice">最終價錢：待賣家報價</strong></p><p class="muted" id="currencyMessage">結算參考幣別：HKD</p><p class="shipping-small" data-i18n="shippingCartNote">滿港幣 HK$4,000 免運費，未滿運費及適用稅費按地區待報價；目前未設即時售價。</p><hr style="border:0;border-top:1px solid #eadde1"><p class="hint" data-i18n="cartNotice">此網站僅記錄訂單資料及付款偏好，暫無即時收款。當你收到正式付款通知前，請勿轉帳。</p></aside>
-</div></section>
+<aside class="card"><h3><span data-i18n="cartTitle">你嘅購物車</span> <span id="cartCount" class="pill">0</span></h3><div id="cartLines"><p class="muted" data-i18n="cartEmpty">尚未選擇商品</p></div><p style="margin-top:20px"><strong data-i18n="finalPrice">最終價錢：待賣家報價</strong></p><p class="muted" id="currencyMessage">結算參考幣別：HKD</p><p class="shipping-small" data-i18n="shippingCartNote">滿港幣 HK$4,000 免運費；未滿運費及適用稅費按地區待報價；目前未設即時售價。</p><hr style="border:0;border-top:1px solid #eadde1"><p class="hint" data-i18n="cartNotice">此網站僅記錄訂單資料及付款偏好，暫無即時收款。當你收到正式付款通知前，請勿轉帳。</p></aside>
+</div>
+ </div>
+</section>
 </main>
-<footer><strong>LUMENDA SELECT</strong><p><span data-i18n="footerRetailer">Independent Beauty Retailer · 護膚精選零售商</span><br><span data-i18n="footerAffiliation">SK-II 品牌屬其權利人所有，本網站與 SK-II、P&G 並無官方授權或隸屬關係之聲明。</span></p><p data-i18n="footerTerms">退換貨、庫存與各地稅項、運送條款以人工確認之正式交易條款為準；正式付款功能尚未開通。</p></footer>
-<script src="/i18n.js" defer></script><script src="/app.js" defer></script><noscript><p class="noscript" data-i18n="noscript">請開啟 JavaScript 以填寫物流資料。</p></noscript>
+<footer class="glow-footer"><div class="footer__ripple" aria-hidden="true"></div><div class="shell footer__inner"><div class="footer__top"><div><span class="footer__brand">LUMENDA <em>SELECT</em></span><p data-i18n="footerRetailer">Independent Beauty Retailer · 獨立護膚精選零售商</p></div><a href="#top" class="footer__up" aria-label="Back to top">↑</a></div><div class="footer__line"></div><p data-i18n="footerAffiliation">SK-II 商標屬其權利人所有。本網站與 SK-II、P&G 並無官方授權或隸屬關係。</p><p data-i18n="footerTerms">退換貨、價格、庫存、稅項及運送條款以最終確認為準；尚未提供即時付款。</p><div class="footer__bottom"><span>© 2026 LUMENDA SELECT</span><span>SELECTED WITH CARE <i aria-hidden="true">✧</i></span></div></div></footer>
+<div class="disclaimer" data-i18n="disclaimer">網站只收集訂單查詢，所有價格、庫存、運費、稅項及付款資料都須賣家確認。網站不會直接扣款。</div>
+<script src="/i18n.js" defer></script><script src="/app.js" defer></script>
+<noscript><p class="noscript" data-i18n="noscript">請開啟 JavaScript 以填寫物流資料。</p></noscript>
 </body></html>

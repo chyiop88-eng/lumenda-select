@@ -11,7 +11,7 @@ const ROOT=dirname(fileURLToPath(import.meta.url));
 const STATIC_FILES={
   '/index.html':'text/html; charset=utf-8', '/admin.html':'text/html; charset=utf-8',
   '/styles.css':'text/css; charset=utf-8','/app.js':'text/javascript; charset=utf-8',
-  '/i18n.js':'text/javascript; charset=utf-8','/admin.js':'text/javascript; charset=utf-8'
+  '/i18n.js':'text/javascript; charset=utf-8','/admin.js':'text/javascript; charset=utf-8','/lumenda-favicon.png':'image/png'
 };
 const MARKETS = JSON.parse(readFileSync(join(ROOT, 'config', 'markets.json'), 'utf8'));
 const PRODUCTS = JSON.parse(readFileSync(join(ROOT, 'config', 'products.json'), 'utf8'));

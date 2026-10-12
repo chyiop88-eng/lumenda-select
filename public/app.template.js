@@ -152,3 +152,29 @@ $('orderForm').addEventListener('submit',async event=>{
 marketSelect.addEventListener('change',()=>{setLanguage(I18N.DEFAULT_LANG[marketSelect.value]||'en',false);});
 languageSelect.addEventListener('change',()=>{setLanguage(languageSelect.value,true);});
 setLanguage(I18N.DEFAULT_LANG[marketSelect.value],false);
+
+
+// Rose Aura: lightweight cinematic light movement; visual-only enhancements.
+(function initRoseAuraEffects(){
+  const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if(reduced)return;
+  const reveals=[...document.querySelectorAll('.reveal')];
+  if('IntersectionObserver' in window){
+    const watcher=new IntersectionObserver(entries=>{
+      for(const entry of entries){if(entry.isIntersecting){entry.target.classList.add('is-visible');watcher.unobserve(entry.target);}}
+    },{threshold:0.08,rootMargin:'0px 0px -16px 0px'});
+    document.documentElement.classList.add('motion-ready');
+    reveals.forEach(node=>watcher.observe(node));
+  }else{reveals.forEach(node=>node.classList.add('is-visible'));}
+  const hero=document.querySelector('.hero-premiere');
+  if(hero&&window.matchMedia?.('(hover:hover) and (pointer:fine)').matches){
+    let pending=false,point=null;
+    hero.addEventListener('pointermove',event=>{
+      const rect=hero.getBoundingClientRect();
+      point=[Math.round((event.clientX-rect.left)/rect.width*100)+'%',Math.round((event.clientY-rect.top)/rect.height*100)+'%'];
+      if(pending)return;
+      pending=true;
+      requestAnimationFrame(()=>{if(point){hero.style.setProperty('--px',point[0]);hero.style.setProperty('--py',point[1]);}pending=false;});
+    },{passive:true});
+  }
+})();
