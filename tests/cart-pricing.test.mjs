@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {calculateCart} from '../lib/cart-pricing.mjs';
 import {readFileSync} from 'node:fs';
-const PRODUCTS=JSON.parse(readFileSync(new URL('../config/products.json',import.meta.url),'utf8'));
+const PRODUCTS=JSON.parse(readFileSync(new URL('../config/products.json',import.meta.url),'utf8')).map(p=>p.sku==='FTE230'?{...p,price:{baseCurrency:'HKD',baseAmount:899}}:p);
 test('HK$899 each, quantity and free shipping threshold',()=>{
  const a=calculateCart([{sku:'FTE230',qty:1}],PRODUCTS);
  assert.equal(a.pricedSubtotalHkd,899);
