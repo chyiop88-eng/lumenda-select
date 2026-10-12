@@ -1,0 +1,37 @@
+name: Live agent invitations sanity check
+on:
+  push:
+    branches:
+      - agent-invites-v11-2026-10-12
+permissions:
+  contents: read
+jobs:
+  live-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Check deployed referral UI and anonymous permissions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, urllib.error, urllib.request, sys
+          base="https://lumenda-select-preview.onrender.com"
+          checks=[]
+          def run(name,path,expected,verify=None):
+              req=urllib.request.Request(base+path,headers={'User-Agent':'lumenda-owner-invite-live-check/1.0'})
+              try:
+                  with urllib.request.urlopen(req,timeout=40) as r:
+                      status=r.status; content=r.read(150000).decode('utf-8','replace')
+              except urllib.error.HTTPError as e:
+                  status=e.code;content=e.read(8000).decode('utf-8','replace')
+              okay=status==expected and (verify(content) if verify else True)
+              checks.append(okay);print(('[PASS]' if okay else '[FAIL]')+' '+name+' HTTP '+str(status),flush=True)
+          run('health-v11','/api/health',200,lambda s:json.loads(s).get('uiVersion')=='11.0.0' and json.loads(s).get('agentInvitesEnabled') is True)
+          run('two-signature-products','/api/health',200,lambda s:json.loads(s).get('featuredSKUs')==['FTE230','GENOPTICS50'])
+          run('admin-agent-panel','/admin',200,lambda s:'id="createAgent"' in s and 'id="agentList"' in s)
+          run('owner-script-agent-actions','/admin.js',200,lambda s:'/api/admin/agents' in s and 'referral_code' in s)
+          run('buyer-referral-code-capture','/app.js',200,lambda s:'lumenda_referral' in s and 'referralCode' in s)
+          run('anonymous-agent-list-denied','/api/admin/agents',401)
+          print('LIVE_AGENT_CHECK: '+str(sum(checks))+'/'+str(len(checks))+' (read only, no private data)',flush=True)
+          if not all(checks):sys.exit(1)
+          PY
