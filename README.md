@@ -5,7 +5,7 @@ This live Node.js/PostgreSQL website is deployed at https://lumenda-select-previ
 ## What it includes
 
 - Six-market storefront: CN, HK, TW, MY, VN, TH; market-specific shipping fields and a separate language selector (Traditional Chinese, Simplified Chinese, English, Malay, Vietnamese, Thai)
-- Two SK-II signature product enquiry cards (神仙水 230ml and 小燈泡 50ml), cart, customer and delivery data, payment *preferences* (not a checkout charge)
+- Three orderable variants (Facial Treatment Essence 230ml CNY ¥750, 330ml CNY ¥990, and GenOptics 50ml quote-only), cart and private order data with seller-confirmed HKD settlement
 - Real order API, persisted into PostgreSQL once `DATABASE_URL` is set
 - Admin sign-in at `/admin` (also `/admin.html`), protected order list and status updates, CSV export
 - Two admin image upload slots: Facial Treatment Essence / 神仙水, GenOptics Aura Essence / 小燈泡. Uploaded JPG/PNG/WebP up to 4 MB are stored persistently in PostgreSQL `bytea` and served under `/media/fte` and `/media/aura` (with the high-quality default art as fallback)
@@ -79,7 +79,7 @@ Before collecting live orders, verify: public store on phone/desktop; six market
 
 ## v13 new functionality
 
-- FTE230 current seller price **HK$899**, USD indication **US$114.55** (reference 2026-10-12 rate 1 HKD ≈ 0.127422 USD); GenOptics Aura Essence remains quote-only. USD display excludes shipping and destination taxes.
+- FTE230 seller list price **CNY ¥750** and FTE330 **CNY ¥990**. These are original-currency list prices, not payable HKD amounts. Admin must confirm the CNY-to-HKD rate before calculating an HKD PayPal or FPS settlement quote. Legacy submitted orders keep their original HKD pricing snapshots. GenOptics remains quote-only.
 - Owner-only phone lookup from submitted orders in `/admin`, no scraping of abandoned form inputs or unauthorized bulk marketing.
 - Private customer receipt link on successful order enquiry, with order status, quotation, and third-party hosted payment button only after a seller supplies one.
 - Standalone rule-based customer-service bot for initial order questions, with optional disabled-by-default xAI/Grok API if owner separately supplies an xAI API key and approves costs.
