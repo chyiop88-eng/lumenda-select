@@ -280,3 +280,15 @@ body.rose-aura-site .ambient{position:absolute;z-index:-1;inset:0 0 auto;min-hei
 .order-quote-panel .button-row{flex-wrap:wrap}
 @media(max-width:850px){.concierge-card{grid-template-columns:1fr}.order-quote-panel .field-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.concierge-card{padding:17px;gap:12px}.concierge-stage{padding:15px 0 22px}.order-quote-panel .field-grid{grid-template-columns:1fr}.concierge-bubble{max-width:95%}}
+
+/* v14 checkout: instant server-listed subtotal, mobile-first breakdown */
+.cart-price-summary{margin-top:20px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fffaf6}
+.cart-price-summary__line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:9px 0}
+.cart-price-summary__line strong{font-variant-numeric:tabular-nums}
+.cart-price-summary .hint{margin:10px 0;line-height:1.55}
+.order-cart-breakdown{padding:13px 15px;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:#fdf5f2}
+.order-cart-breakdown p{font-size:13px;margin:7px 0;line-height:1.55}
+.order-quote-panel{margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.order-quote-panel input:read-only{background:#f2ebeb;color:#604657}
+.order-quote-panel .quote-summary{padding:13px;border:1px solid var(--line);border-radius:10px;background:#fff8f1;font-variant-numeric:tabular-nums}
+@media(max-width:550px){.cart-price-summary{padding:12px}.cart-price-summary__line{flex-wrap:wrap}.receipt-page .btn{width:100%;display:block;text-align:center;margin-top:12px}}
