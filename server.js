@@ -142,6 +142,15 @@ async function serveMedia(key,method){
   const fallback=key==='fte'?'/campaign-facial-treatment-essence-hd-v7.webp':'/campaign-genoptics-aura-essence-hd-v7.webp';
   return serveHD(fallback,method);
 }
+function unpackJsonValue(value,fallback){
+  if(typeof value!=='string')return value??fallback;
+  try{return JSON.parse(value);}catch{return fallback;}
+}
+function normalizedOrder(record){
+  return {...record,customer:unpackJsonValue(record.customer,{}),
+    items:unpackJsonValue(record.items,[]),quote:unpackJsonValue(record.quote,null)};
+}
+
 const send = (obj, status=200) => Response.json(obj, {status, headers: {
   'Cache-Control':'no-store','X-Robots-Tag':'noindex,nofollow','X-Content-Type-Options':'nosniff'
 }});
@@ -365,9 +374,13 @@ async function handle(req) {
             (array_agg(market ORDER BY created_at DESC))[1] AS market,
             COUNT(*)::int AS order_count,MAX(created_at) AS last_seen_at
           FROM (
-            SELECT COALESCE(NULLIF(customer->>'phoneIntl',''),NULLIF(customer->>'phone','')) AS phone,
-              customer->>'name' AS name,market,created_at
-            FROM lumenda_orders
+            SELECT COALESCE(NULLIF(c->>'phoneIntl',''),NULLIF(c->>'phone','')) AS phone,
+              c->>'name' AS name,market,created_at
+            FROM (
+              SELECT CASE WHEN jsonb_typeof(customer)='string'
+                THEN (customer #>> '{}')::jsonb ELSE customer END AS c,market,created_at
+              FROM lumenda_orders
+            ) AS normalized
           ) AS entries WHERE phone IS NOT NULL
           GROUP BY phone
         ) SELECT phone,name,market,order_count,last_seen_at FROM grouped
@@ -390,7 +403,7 @@ async function handle(req) {
       if(!rows.length)return send({ok:false,error:'搵唔到呢張訂單'},404);
       const o=rows[0];
       return send({ok:true,order:{id:o.id,market:o.market,createdAt:o.created_at,
-        status:o.status,items:o.items,quote:o.quote,paymentStatus:o.payment_status,
+        status:o.status,items:unpackJsonValue(o.items,[]),quote:unpackJsonValue(o.quote,null),paymentStatus:o.payment_status,
         paidVerified:!!o.payment_verified_at},
         botMessage:'已收到訂單查詢，店主稍後核實商品、運費、稅項同正式報價。'});
     }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
@@ -418,12 +431,12 @@ async function handle(req) {
         taxHkd:tax/100,totalHkd:total/100,freeShipping:subtotal>=400000,
         note:clean(body.note,280),paymentLink,quotedAt:new Date().toISOString()};
       await ensureTable();
-      const updated=await DB`UPDATE lumenda_orders SET quote=${JSON.stringify(quote)}::jsonb,
+      const updated=await DB`UPDATE lumenda_orders SET quote=${DB.json(quote)}::jsonb,
         payment_status=${paymentLink?'link_ready':'not_requested'},
         payment_verified_at=NULL,payment_reference=NULL
         WHERE id=${id} AND status<>'cancelled'
         RETURNING id,quote,payment_status`;
-      return send({ok:updated.length>0,quote:updated[0]?.quote,
+      return send({ok:updated.length>0,quote:unpackJsonValue(updated[0]?.quote,null),
         paymentStatus:updated[0]?.payment_status},updated.length?200:404);
     }catch(e){if(e.status)return send({ok:false,error:e.message},e.status);
       console.error('Seller quote unavailable',e?.code||e?.name);
@@ -556,7 +569,7 @@ async function handle(req) {
       await ensureTable();
       const data=validateOrder(await parseJSON(req));
       const id='LMD-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+randomBytes(5).toString('hex').toUpperCase();
-      const customer=JSON.stringify(data.customer),items=JSON.stringify(data.items);
+      const customer=DB.json(data.customer),items=DB.json(data.items);
       const referralCode=await activeReferralCode(data.referralCandidate);
       const receiptToken=randomBytes(32).toString('base64url');
       const receiptHash=createHash('sha256').update(receiptToken).digest('hex');
@@ -572,7 +585,7 @@ async function handle(req) {
   }
   if(path==='/api/orders' && req.method==='GET') {
     if(!validAdmin(req)||!validAdminOrigin(req)) return send({ok:false,error:'Unauthorized'},401);
-    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,payment_status,payment_verified_at,payment_reference FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders});}
+    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,payment_status,payment_verified_at,payment_reference FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders:orders.map(normalizedOrder)});}
     catch(e){console.error('Order fetch failed',e?.message);return send({ok:false,error:'Database unavailable'},503);}
   }
   if(path.startsWith('/api/orders/') && req.method==='PATCH') {
