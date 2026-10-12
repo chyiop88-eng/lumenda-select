@@ -1,0 +1,76 @@
+name: Round 2 authorized Trojan simulation
+on:
+  push:
+    branches:
+      - security-audit-round2-2026-10-12
+permissions:
+  contents: read
+jobs:
+  isolated-malware-simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: lumenda_audit
+          POSTGRES_USER: audit
+          POSTGRES_PASSWORD: isolated_test_only_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U audit -d lumenda_audit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install and generate frontend
+        run: |
+          npm install --omit=dev
+          node scripts/build_frontend.mjs
+          node --test tests/http.test.mjs
+      - name: Isolated full-stack Trojan-canary tests (no live customer data)
+        env:
+          DATABASE_URL: postgres://audit:isolated_test_only_password@127.0.0.1:5432/lumenda_audit
+        run: node --test tests/security-trojan-round2.test.mjs
+      - name: Passive low-volume live production API checks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, ssl, urllib.error, urllib.request, time, sys
+          base="https://lumenda-select-preview.onrender.com"
+          success=0;total=0
+          def check(name,path,method,expected,content=None,headers=None,validator=None):
+              global success,total
+              req=urllib.request.Request(base+path,data=content,headers={"User-Agent":"LUMENDA-authorized-round2/1.0",**(headers or {})},method=method)
+              status=None; body=b"";h={}
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      status=r.status; h={k.lower():v for k,v in r.headers.items()};body=r.read(4096)
+              except urllib.error.HTTPError as e:
+                  status=e.code;h={k.lower():v for k,v in e.headers.items()};body=e.read(4096)
+              except Exception as e:status="NETWORK_ERROR"
+              passed=status in expected
+              if passed and validator:
+                  try:passed=bool(validator(body,h))
+                  except Exception:passed=False
+              print(("[PASS]" if passed else "[FAIL]")+" "+name+" HTTP "+str(status),flush=True)
+              total+=1;success+=int(passed);time.sleep(.35)
+          check("health-enabled","/api/health","GET",{200},validator=lambda b,h:json.loads(b).get("ordersEnabled") is True)
+          check("private-order-list","/api/orders","GET",{401,403})
+          check("forged-session","/api/admin/session","GET",{401,403},headers={"Cookie":"lumenda_admin=not_a_valid_session"})
+          check("unauthorized-trojan-like-bytes","/api/admin/media/fte","POST",{401,403},content=b"MZ_INERT_TEST_NOT_A_REAL_EXECUTABLE",headers={"Content-Type":"application/octet-stream"})
+          check("unauthorized-image-magic","/api/admin/media/aura","POST",{401,403},content=bytes([137,80,78,71,13,10,26,10])+b"INERT_TEST_ONLY",headers={"Content-Type":"image/png"})
+          check("unauthorized-order-status","/api/orders/AUDIT_NONEXISTENT","PATCH",{401,403},content=b'{"status":"completed"}',headers={"Content-Type":"application/json"})
+          check("reject-bad-order","/api/orders","POST",{400,403},content=b"{}",headers={"Content-Type":"application/json"})
+          check("private-server-source","/server.js","GET",{404,403})
+          check("private-env","/.env","GET",{404,403})
+          check("public-media-safe-mime","/media/fte","GET",{200},validator=lambda b,h:h.get("content-type","").split(";")[0] in ("image/webp","image/png","image/jpeg") and h.get("x-content-type-options")=="nosniff")
+          check("homepage-csp","/","GET",{200},validator=lambda b,h:"frame-ancestors" in h.get("content-security-policy","") and h.get("x-frame-options","").upper()=="DENY")
+          print("ROUND2_LIVE_SUMMARY: "+str(success)+"/"+str(total)+" low-impact checks; no authenticated uploads or successful login attempts.",flush=True)
+          if success!=total:sys.exit(1)
+          PY
