@@ -5,7 +5,8 @@
   let token='';
   try{
     const fragment=decodeURIComponent(location.hash.slice(1));
-    token=/^[A-Za-z0-9_-]{43}$/.test(fragment)?fragment:sessionStorage.getItem('lumenda_receipt_token')||'';
+    const isReturn=!fragment && /^\?payment=(success|cancel)$/.test(location.search);
+    token=/^[A-Za-z0-9_-]{43}$/.test(fragment)?fragment:(isReturn?sessionStorage.getItem('lumenda_receipt_token')||'':'');
     if(/^[A-Za-z0-9_-]{43}$/.test(token)){
       sessionStorage.setItem('lumenda_receipt_token',token);
       if(!location.hash||location.search)history.replaceState(null,'','/order#'+token);
