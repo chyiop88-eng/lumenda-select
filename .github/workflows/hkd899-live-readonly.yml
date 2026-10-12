@@ -1,0 +1,41 @@
+name: HKD899 live readonly acceptance
+on:
+  push:
+    branches:
+      - hkd899-live-audit-2026-10-12
+permissions:
+  contents: read
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify public storefront pricing and admin protection
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,sys,time,urllib.request,urllib.error
+          base="https://lumenda-select-preview.onrender.com"
+          tests=[]
+          def check(name,path,expected,validator):
+              req=urllib.request.Request(base+path,headers={'User-Agent':'lumenda-owner-hkd899-acceptance/1.0'})
+              try:
+                  with urllib.request.urlopen(req,timeout=35) as r:
+                      code=r.status;content=r.read(180000).decode('utf-8','replace')
+              except urllib.error.HTTPError as e:
+                  code=e.code;content=e.read(4000).decode('utf-8','replace')
+              except Exception:
+                  code=0;content=''
+              passed=code==expected and validator(content)
+              tests.append(passed)
+              print(('[PASS]' if passed else '[FAIL]')+' '+name+' HTTP '+str(code),flush=True)
+              time.sleep(.3)
+          check('health','/api/health',200,lambda s:json.loads(s).get('featuredSKUs')==['FTE230','GENOPTICS50'] and json.loads(s).get('shippingPolicy',{}).get('freeShippingThresholdHKD')==4000)
+          check('frontend-compilation-price','/app.js',200,lambda s:'"baseCurrency":"HKD","baseAmount":899' in s and '"usdApprox":114.55' in s and 'receiptToken' in s and 'renderCart' in s)
+          check('six-language-price','/i18n.js',200,lambda s:s.count('114.55')>=5 and s.count('HK$899')>=5)
+          check('order-form','/',200,lambda s:'id="orderForm"' in s and 'id="conciergeForm"' in s)
+          check('owner-only-orders','/api/orders',401,lambda s:True)
+          check('owner-only-phone-directory','/api/admin/contacts',401,lambda s:True)
+          print('HKD899_LIVE_ACCEPTANCE: '+str(sum(tests))+'/'+str(len(tests)),flush=True)
+          if not all(tests):sys.exit(1)
+          PY
