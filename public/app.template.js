@@ -102,7 +102,7 @@ function renderProducts(){
     const hint=document.createElement('p');hint.className='hint';hint.textContent=p.price?.usdApprox?tr('price'):tr('priceRequest');
     const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=tr('add');
     button.addEventListener('click',()=>{selected[p.sku]=Math.min(30,(selected[p.sku]||0)+1);renderCart();});
-    if(p.price?.usdApprox){const caution=document.createElement('small');caution.className='price-caution';caution.textContent=tr('quote');body.append(caution);}body.append(tag,title,hint,button);card.append(body);grid.append(card);
+    body.append(tag,title,hint);if(p.price?.usdApprox){const caution=document.createElement('small');caution.className='price-caution';caution.textContent=tr('quote');body.append(caution);}body.append(button);card.append(body);grid.append(card);
   }
 }
 function renderCart(){
