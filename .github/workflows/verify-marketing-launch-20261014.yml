@@ -1,0 +1,64 @@
+name: Verify Live Marketing Launch
+on:
+  push:
+    branches:
+      - audit/marketing-launch-http-20261014
+permissions:
+  contents: read
+jobs:
+  live-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Verify live landing page, safe SEO, private admin pages
+        run: |
+          set -euo pipefail
+          base=https://lumenda-select-preview.onrender.com
+          for p in / /admin /order /robots.txt /sitemap.xml /app.js; do
+            code=$(curl --retry 3 --retry-delay 4 --connect-timeout 15 --max-time 75 -sS -L -o /tmp/response -D /tmp/response_headers -w '%{http_code}' "$base$p")
+            echo "$p HTTP $code"
+            test "$code" = 200
+            test -s /tmp/response
+            if [ "$p" = "/" ]; then
+              grep -iq 'x-robots-tag: index,follow' /tmp/response_headers
+              grep -q 'og:description' /tmp/response
+              grep -q 'rel="canonical"' /tmp/response
+              grep -q 'robots" content="index,follow' /tmp/response
+            elif [ "$p" = "/admin" ] || [ "$p" = "/order" ]; then
+              grep -iq 'x-robots-tag: noindex,nofollow' /tmp/response_headers
+            elif [ "$p" = "/robots.txt" ]; then
+              grep -q 'Disallow: /admin' /tmp/response
+              grep -q 'Disallow: /order' /tmp/response
+              grep -q 'Disallow: /api/' /tmp/response
+            elif [ "$p" = "/sitemap.xml" ]; then
+              grep -q 'lumenda-select-preview.onrender.com/' /tmp/response
+              ! grep -q '/admin' /tmp/response
+            elif [ "$p" = "/app.js" ]; then
+              grep -q 'utm_source' /tmp/response
+              grep -q 'marketingSource' /tmp/response
+            fi
+          done
+      - name: Verify working API and RMB cart with real charges disabled
+        run: |
+          set -euo pipefail
+          base=https://lumenda-select-preview.onrender.com
+          curl -fsS --retry 3 --retry-delay 4 --max-time 75 "$base/api/health" -o /tmp/health.json
+          curl -fsS --retry 3 --retry-delay 4 --max-time 75 \
+            -H 'Content-Type: application/json' \
+            -d '{"items":[{"sku":"FTE230","qty":2},{"sku":"FTE330","qty":1}]}' \
+            "$base/api/cart/estimate" -o /tmp/cart.json
+          node - <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const h=JSON.parse(fs.readFileSync('/tmp/health.json','utf8'));
+          const c=JSON.parse(fs.readFileSync('/tmp/cart.json','utf8'));
+          assert.equal(h.ok,true);
+          assert.equal(h.ordersEnabled,true);
+          assert.equal(h.paypalCheckoutEnabled,false);
+          assert.equal(h.stripeCheckoutEnabled,false);
+          assert.equal(h.paymentsLive,false);
+          assert.deepEqual(h.featuredSKUs,['FTE230','FTE330','GENOPTICS50']);
+          assert.equal(c.ok,true);
+          assert.equal(c.cart.pricedSubtotalCny,2490);
+          assert.equal(c.cart.paymentDueNowHkd,0);
+          console.log(JSON.stringify({ordersEnabled:h.ordersEnabled,paypalLive:h.paymentsLive,products:h.featuredSKUs,cartCny:c.cart.pricedSubtotalCny}));
+          NODE
