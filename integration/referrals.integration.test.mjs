@@ -53,7 +53,7 @@ test('agent invite lifecycle and real order attribution',async()=>{
       name:'Fictional Test Customer',phone:'91234567',email:'noreply@example.test',
       shipping:{region:'香港島',district:'中西區',address1:'Example Street 1',address2:''}
     },paymentMethod:'FPS',otherPayment:'',deliverySpeed:'standard',
-    deliveryNote:'',note:'AUTOMATED INTEGRATION TEST ONLY',consent:true,website:'',referralCode:code
+    deliveryNote:'',note:'AUTOMATED INTEGRATION TEST ONLY',consent:true,website:'',referralCode:code,marketingSource:'facebook'
   };
   const create=await api('/api/orders',{method:'POST',...json(sample)});
   assert.equal(create.status,201,JSON.stringify(create.body));assert.equal(create.body.referralTracked,true);
@@ -62,6 +62,7 @@ test('agent invite lifecycle and real order attribution',async()=>{
   assert.equal(orders.status,200);
   const record=orders.body.orders.find(o=>o.id===create.body.orderId);
   assert.ok(record,'Order must persist in DB');assert.equal(record.referral_code,code);
+  assert.equal(record.marketing_source,'facebook','organic campaign source must be stored separately from referral commissions');
   const counted=await api('/api/admin/agents',{headers:auth});
   assert.equal(counted.body.agents.find(a=>a.code===code)?.order_count,1);
   const suspended=await api('/api/admin/agents/'+code,{method:'PATCH',...json({status:'inactive'},auth)});
