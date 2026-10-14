@@ -16,6 +16,19 @@ const referralCode=(()=>{
   }catch{}
   return /^(AG|RF)[A-F0-9]{14}$/.test(code)?code:'';
 })();
+// One non-personal acquisition source per tab, separate from paid agent/referral codes.
+const marketingSource=(()=>{
+  const allowed=new Set(['facebook','instagram','whatsapp','88db','google','carousell','direct','other']);
+  const incoming=String(new URLSearchParams(window.location.search).get('utm_source')||'').toLowerCase().trim();
+  let saved='';
+  try{
+    if(allowed.has(incoming)){
+      sessionStorage.setItem('lumenda_marketing_source',incoming);
+      saved=incoming;
+    }else saved=sessionStorage.getItem('lumenda_marketing_source')||'';
+  }catch{}
+  return allowed.has(saved)?saved:'';
+})();
 const marketSelect = $('market');
 const languageSelect = $('language');
 let language = I18N.DEFAULT_LANG.HK;
@@ -191,7 +204,7 @@ $('orderForm').addEventListener('submit',async event=>{
   const shipping={};for(const field of m.addressFields) shipping[field.key]=textVal('shipping_'+field.key);
   shipping.postcode=textVal('shipping_postcode');
   const customer={name:textVal('recipient'),phone:textVal('phone'),email:textVal('email'),contactMethod:textVal('contactMethod'),contactId:textVal('contactId'),company:textVal('company'),shipping};
-  const data={market,items,customer,paymentMethod:textVal('paymentMethod'),otherPayment:textVal('otherPayment'),deliverySpeed:textVal('deliverySpeed'),deliveryNote:textVal('deliveryNote'),note:textVal('orderNote'),referralCode,consent:$('privacy').checked,website:textVal('website')};
+  const data={market,items,customer,paymentMethod:textVal('paymentMethod'),otherPayment:textVal('otherPayment'),deliverySpeed:textVal('deliverySpeed'),deliveryNote:textVal('deliveryNote'),note:textVal('orderNote'),referralCode,marketingSource,consent:$('privacy').checked,website:textVal('website')};
   const button=$('submitOrder');button.disabled=true;button.textContent=tr('submitting');
   try{
     const res=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});

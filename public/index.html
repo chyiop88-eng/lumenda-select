@@ -3,10 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
+<meta name="robots" content="index,follow,max-image-preview:large">
 <meta name="theme-color" content="#310d1d">
-<meta name="description" content="LUMENDA SELECT 獨立美妝零售商。SK-II 神仙水與小燈泡明星產品訂單查詢。六地配送，滿港幣 HK$4,000 免運費，條款適用。">
-<title>LUMENDA SELECT｜SK-II 明星產品</title>
+<meta name="description" content="LUMENDA SELECT 獨立護膚零售商：SK-II 神仙水 230ml ¥750、330ml ¥990（人民幣 CNY），小燈泡另行報價。提供訂單查詢，港幣結帳價、供應、運費及稅款待賣家核實。非 SK-II 官方網站。">
+<title>LUMENDA SELECT｜神仙水 230ml／330ml 訂單查詢</title>
+<link rel="canonical" href="https://lumenda-select-preview.onrender.com/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LUMENDA SELECT">
+<meta property="og:title" content="LUMENDA SELECT｜神仙水 230ml ¥750 · 330ml ¥990">
+<meta property="og:description" content="神仙水 230ml CNY ¥750、330ml CNY ¥990。立即查詢供應與配送；正式港幣報價及稅運費待確認。獨立零售商，非官方網站。">
+<meta property="og:url" content="https://lumenda-select-preview.onrender.com/">
+<meta name="twitter:card" content="summary">
 <link rel="icon" type="image/png" href="/lumenda-favicon.png">
 <link rel="preload" as="image" href="/media/fte">
 <link rel="stylesheet" href="/styles.css">
@@ -102,6 +109,7 @@
 <div class="section-heading"><b>3</b><h3 data-i18n="sectionThree">希望使用嘅付款方式</h3></div>
 <div class="field-grid"><div class="field wide"><label for="paymentMethod"><span data-i18n="paymentPreference">付款方式偏好</span> <span class="required">*</span></label><select id="paymentMethod" name="paymentMethod" required></select><div class="hint" id="paymentHint"></div></div><div class="field wide" id="otherPaymentWrap" hidden><label for="otherPayment"><span data-i18n="otherPayment">其他付款方式／問題</span> <span class="required">*</span></label><input id="otherPayment" name="otherPayment" maxlength="200" data-i18n-placeholder="otherPaymentPlaceholder" placeholder="例如其他銀行轉帳、電子錢包或付款查詢"></div><div class="field wide"><label for="orderNote" data-i18n="orderNote">訂單備註（選填）</label><textarea id="orderNote" name="orderNote" rows="3" maxlength="500" data-i18n-placeholder="orderNotePlaceholder" placeholder="貨品規格、數量或其他要求"></textarea></div></div>
 <p class="notice" style="margin:19px 0" data-i18n="paymentDisclosure">選擇 FPS、PayPal 或 USDT 只係表達付款偏好，唔代表已經付款。賣家確認正式報價、合規性及帳戶資料後，先會提供實際付款指示。請勿填入銀行密碼、錢包私鑰或信用卡號碼。</p>
+<p class="hint">如果你經推廣連結進入，本店只會喺你提交訂單時記錄來源平台名稱（例如 Facebook 或 88DB），作訂單渠道統計；唔會藉此跨站追蹤。 / We save only the referring platform label when you submit an order, with no cross-site tracking.</p>
 <div class="check"><input id="privacy" name="privacy" type="checkbox" required><label for="privacy"><span data-i18n="consent">我同意賣家使用我填寫嘅姓名、電話及地址處理訂單、安排配送同聯絡我；我明白網站係獨立賣家，唔係 SK-II 官方，以及提交唔代表付款成功。</span> <span class="required">*</span></label></div>
 <input type="text" name="website" id="website" style="position:absolute;left:-9999px" tabindex="-1" autocomplete="off" aria-hidden="true">
 <button type="submit" class="btn" id="submitOrder" style="width:100%;margin-top:20px" data-i18n="submit">提交訂單申請 · 不會扣款</button><div id="result" role="status" aria-live="polite" class="status"></div>

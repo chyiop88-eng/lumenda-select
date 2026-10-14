@@ -64,3 +64,34 @@ test('SK-II 230ml and 330ml RMB variants and GenOptics are orderable with HKD 40
   assert.match(app,/GENOPTICS50/);assert.match(app,/FTE330/);assert.match(app,/"baseAmount":750/);assert.match(app,/"baseAmount":990/);assert.doesNotMatch(app,/CLEAR230|SKINPOWER80|MASK6|SET01/);
   const admin=await (await fetch(url+'/admin')).text();assert.ok(admin.includes('HK$4,000'));
 });
+
+test('marketing launch allows indexing storefront but never admin, private receipts or APIs',async()=>{
+  const home=await fetch(url+'/');
+  assert.equal(home.status,200);
+  assert.equal(home.headers.get('x-robots-tag'),'index,follow');
+  const html=await home.text();
+  assert.match(html,/<meta name="robots" content="index,follow/);
+  assert.match(html,/property="og:title"/);
+  assert.match(html,/rel="canonical"/);
+  const admin=await fetch(url+'/admin');
+  assert.equal(admin.status,200);
+  assert.equal(admin.headers.get('x-robots-tag'),'noindex,nofollow');
+  const privateReceipt=await fetch(url+'/order');
+  assert.equal(privateReceipt.status,200);
+  assert.equal(privateReceipt.headers.get('x-robots-tag'),'noindex,nofollow');
+  const health=await fetch(url+'/api/health');
+  assert.equal(health.headers.get('x-robots-tag'),'noindex,nofollow');
+  const robot=await fetch(url+'/robots.txt');
+  assert.equal(robot.status,200);
+  assert.match(robot.headers.get('content-type'),/^text\/plain/);
+  assert.match(await robot.text(),/Disallow: \/order/);
+  const sitemap=await fetch(url+'/sitemap.xml');
+  assert.equal(sitemap.status,200);
+  assert.match(sitemap.headers.get('content-type'),/^application\/xml/);
+  const map=await sitemap.text();
+  assert.match(map,/https:\/\/lumenda-select-preview\.onrender\.com\//);
+  assert.doesNotMatch(map,/\/admin|\/order/);
+  const app=await (await fetch(url+'/app.js')).text();
+  assert.match(app,/utm_source/);
+  assert.match(app,/marketingSource/);
+});

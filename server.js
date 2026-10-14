@@ -14,7 +14,8 @@ const ROOT=dirname(fileURLToPath(import.meta.url));
 const STATIC_FILES={
   '/index.html':'text/html; charset=utf-8', '/admin.html':'text/html; charset=utf-8',
   '/styles.css':'text/css; charset=utf-8','/app.js':'text/javascript; charset=utf-8',
-  '/i18n.js':'text/javascript; charset=utf-8','/admin.js':'text/javascript; charset=utf-8','/bot.js':'text/javascript; charset=utf-8','/order.js':'text/javascript; charset=utf-8','/order.html':'text/html; charset=utf-8','/lumenda-favicon.png':'image/png'
+  '/i18n.js':'text/javascript; charset=utf-8','/admin.js':'text/javascript; charset=utf-8','/bot.js':'text/javascript; charset=utf-8','/order.js':'text/javascript; charset=utf-8','/order.html':'text/html; charset=utf-8','/lumenda-favicon.png':'image/png',
+  '/robots.txt':'text/plain; charset=utf-8','/sitemap.xml':'application/xml; charset=utf-8'
 };
 const MARKETS = JSON.parse(readFileSync(join(ROOT, 'config', 'markets.json'), 'utf8'));
 const PRODUCTS = JSON.parse(readFileSync(join(ROOT, 'config', 'products.json'), 'utf8'));
@@ -77,6 +78,7 @@ function ensureTable() {
         market text NOT NULL, customer jsonb NOT NULL, items jsonb NOT NULL, note text
       )`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS referral_code text`;
+      await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS marketing_source text`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS receipt_token_hash text`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS quote jsonb`;
       await DB`ALTER TABLE lumenda_orders ADD COLUMN IF NOT EXISTS cart_snapshot jsonb`;
@@ -283,7 +285,12 @@ function validateOrder(body) {
   const customer={name,phone,phoneIntl,email,company:clean(person.company,120),
     contactMethod:clean(person.contactMethod,30),contactId:clean(person.contactId,100),
     shipping,paymentMethod,otherPayment,deliverySpeed,deliveryNote:clean(body.deliveryNote,300),shippingPolicy:{...SHIPPING_POLICY,freeShippingEligible:null}};
-  return {market,items,customer,note:clean(body.note,500),referralCandidate:clean(body.referralCode,24)};
+  // Only save a generic referral channel, never a visitor identifier or tracking cookie.
+  const source=clean(body.marketingSource,36).toLowerCase();
+  const marketingSource=['facebook','instagram','whatsapp','88db','google','carousell','direct','other']
+    .includes(source)?source:null;
+  return {market,items,customer,note:clean(body.note,500),
+    referralCandidate:clean(body.referralCode,24),marketingSource};
 }
 // Basic in-memory burst limiter. For serious production traffic add managed protection.
 const attempts=new Map();
@@ -304,7 +311,7 @@ function serveFile(path, method) {
     const content=readFileSync(join(ROOT,'public',path.slice(1)));
     return new Response(method==='HEAD'?null:content,{headers:{
       'Content-Type':mime,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
-      'X-Frame-Options':'DENY','X-Robots-Tag':'noindex,nofollow',
+      'X-Frame-Options':'DENY','X-Robots-Tag':path==='/index.html'?'index,follow':'noindex,nofollow',
       'Referrer-Policy':'strict-origin-when-cross-origin',
       'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'"
     }});
@@ -792,8 +799,8 @@ async function handle(req) {
       const referralCode=await activeReferralCode(data.referralCandidate);
       const receiptToken=randomBytes(32).toString('base64url');
       const receiptHash=createHash('sha256').update(receiptToken).digest('hex');
-      await DB`INSERT INTO lumenda_orders(id,status,market,customer,items,note,referral_code,receipt_token_hash,cart_snapshot)
-        VALUES (${id},${'pending_quote'},${data.market},${customer}::jsonb,${items}::jsonb,${data.note},${referralCode},${receiptHash},${DB.json(cart)}::jsonb)`;
+      await DB`INSERT INTO lumenda_orders(id,status,market,customer,items,note,referral_code,marketing_source,receipt_token_hash,cart_snapshot)
+        VALUES (${id},${'pending_quote'},${data.market},${customer}::jsonb,${items}::jsonb,${data.note},${referralCode},${data.marketingSource},${receiptHash},${DB.json(cart)}::jsonb)`;
       return send({ok:true,orderId:id,status:'pending_quote',cart,paymentRequired:false,
         botAcknowledgement:'已收到你的訂單查詢。店主稍後核實貨品、運費、稅費同報價。提交唔代表已付款。',
         receiptToken,referralTracked:!!referralCode},201);
@@ -804,7 +811,7 @@ async function handle(req) {
   }
   if(path==='/api/orders' && req.method==='GET') {
     if(!validAdmin(req)||!validAdminOrigin(req)) return send({ok:false,error:'Unauthorized'},401);
-    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,quote,cart_snapshot,payment_status,payment_verified_at,payment_reference,manual_payment,paypal_order_id,stripe_session_id FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders:orders.map(normalizedOrder)});}
+    try {await ensureTable();const orders=await DB`SELECT id,created_at,status,market,customer,items,note,referral_code,marketing_source,quote,cart_snapshot,payment_status,payment_verified_at,payment_reference,manual_payment,paypal_order_id,stripe_session_id FROM lumenda_orders ORDER BY created_at DESC LIMIT 300`;return send({ok:true,orders:orders.map(normalizedOrder)});}
     catch(e){console.error('Order fetch failed',e?.message);return send({ok:false,error:'Database unavailable'},503);}
   }
   if(path.startsWith('/api/orders/') && req.method==='PATCH') {
