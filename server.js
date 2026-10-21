@@ -347,21 +347,56 @@ function limit(req) {
   if(attempts.size>10000)attempts.clear();
   return false;
 }
-function serveFile(path, method) {
-  if(path==='/admin'||path==='/admin/') path='/admin.html';
+const PUBLIC_ASSET_CACHE=new Map();
+const COMPRESSIBLE_MIME=/^(?:text\/|application\/xml)/;
+function getStaticAsset(path,mime){
+  if(PUBLIC_ASSET_CACHE.has(path))return PUBLIC_ASSET_CACHE.get(path);
+  const bytes=readFileSync(join(ROOT,'public',path.slice(1)));
+  const etagBase=createHash('sha256').update(bytes).digest('hex').slice(0,24);
+  const encoded={identity:bytes};
+  if(COMPRESSIBLE_MIME.test(mime)){
+    encoded.br=brotliCompressSync(bytes,{params:{[ZLIB.BROTLI_PARAM_QUALITY]:4}});
+    encoded.gzip=gzipSync(bytes,{level:5});
+  }
+  const asset={encoded,etagBase};
+  PUBLIC_ASSET_CACHE.set(path,asset);
+  return asset;
+}
+function serveFile(path, method, reqHeaders){
+  if(path==='/admin'||path==='/admin/')path='/admin.html';
   if(path==='/order'||path==='/order/')path='/order.html';
   if(path==='/')path='/index.html';
   const mime=STATIC_FILES[path];if(!mime)return null;
   try{
-    const content=readFileSync(join(ROOT,'public',path.slice(1)));
-    return new Response(method==='HEAD'?null:content,{headers:{
-      'Content-Type':mime,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
-      'X-Frame-Options':'DENY','X-Robots-Tag':path==='/index.html'?'index,follow':'noindex,nofollow',
+    const asset=getStaticAsset(path,mime);
+    const encodingOffered=reqHeaders?.get('accept-encoding')||'';
+    const encoding=asset.encoded.br&&/(?:^|[,;\s])br(?:[,;\s]|$)/i.test(encodingOffered)?
+      'br':asset.encoded.gzip&&/(?:^|[,;\s])gzip(?:[,;\s]|$)/i.test(encodingOffered)?'gzip':'identity';
+    const bytes=asset.encoded[encoding];
+    const isPublicPage=path==='/index.html';
+    const isPrivatePage=path==='/admin.html'||path==='/order.html';
+    const cacheControl=isPrivatePage?'private, no-store':
+      isPublicPage?'public, max-age=60, must-revalidate':
+      'public, max-age=86400, must-revalidate';
+    const etag='"s-'+asset.etagBase+'-'+encoding+'"';
+    const headers={
+      'Content-Type':mime,'Content-Length':String(bytes.length),
+      'ETag':etag,'Vary':'Accept-Encoding',
+      'Cache-Control':cacheControl,'X-Content-Type-Options':'nosniff',
+      'X-Frame-Options':'DENY','X-Robots-Tag':isPublicPage?'index,follow':'noindex,nofollow',
       'Referrer-Policy':'strict-origin-when-cross-origin',
       'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'"
-    }});
-  }catch(e){console.error('Static file unavailable',e?.message);return new Response('Not found',{status:404});}
+    };
+    if(encoding!=='identity')headers['Content-Encoding']=encoding;
+    if(!isPrivatePage&&clientHasEtag(reqHeaders,etag))
+      return new Response(null,{status:304,headers});
+    return new Response(method==='HEAD'?null:bytes,{headers});
+  }catch(e){
+    console.error('Static file unavailable',e?.code||e?.name);
+    return new Response('Not found',{status:404});
+  }
 }
+
 // Disallow cross-origin mutation requests to authenticated endpoints.
 function validAdminOrigin(req){
   const origin=req.headers.get('origin');
