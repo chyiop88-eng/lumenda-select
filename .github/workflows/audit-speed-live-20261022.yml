@@ -42,7 +42,7 @@ jobs:
               -H 'Accept-Encoding: br' -H "If-None-Match: $etag" "$base/$file")
             echo "$file conditional_status=$status"
             test "$status" = 304
-            test "$(wc -c </tmp/no_body)" -eq 0
+            test ! -e /tmp/no_body || test "$(wc -c </tmp/no_body)" -eq 0
           done
       - name: Verify photo ETags, admin privacy and payments safety
         run: |
