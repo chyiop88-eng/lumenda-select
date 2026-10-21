@@ -95,3 +95,55 @@ test('marketing launch allows indexing storefront but never admin, private recei
   assert.match(app,/utm_source/);
   assert.match(app,/marketingSource/);
 });
+
+test('public assets are compressed, versioned and browser-cacheable without caching private data',async()=>{
+  const home=await fetch(url+'/');
+  assert.equal(home.status,200);
+  assert.match(home.headers.get('cache-control'),/public, max-age=60/);
+  assert.ok(home.headers.get('etag'),'homepage should support ETag revalidation');
+  const html=await home.text();
+  const cssVersion=html.match(/href="\/styles\.css\?v=([a-f0-9]{12})"/)?.[1];
+  const jsVersion=html.match(/src="\/app\.js\?v=([a-f0-9]{12})"/)?.[1];
+  assert.match(cssVersion||'',/^[a-f0-9]{12}$/,'CSS URL must use asset fingerprint');
+  assert.equal(cssVersion,jsVersion,'every storefront asset must use one build fingerprint');
+  const css=await fetch(url+'/styles.css?v='+cssVersion,{headers:{'Accept-Encoding':'br'}});
+  assert.equal(css.status,200);
+  assert.equal(css.headers.get('content-encoding'),'br');
+  assert.equal(css.headers.get('vary'),'Accept-Encoding');
+  assert.match(css.headers.get('cache-control'),/public, max-age=86400/);
+  assert.ok(css.headers.get('etag'));
+  const htmlCss=await css.text();
+  assert.match(htmlCss,/hero-premiere/,'Brotli CSS must round-trip to original');
+  const cached=await fetch(url+'/styles.css?v='+cssVersion,{headers:{
+    'Accept-Encoding':'br','If-None-Match':css.headers.get('etag')}});
+  assert.equal(cached.status,304,'unchanged asset must produce a 304 response');
+  const gzip=await fetch(url+'/styles.css?v='+cssVersion,{headers:{
+    'Accept-Encoding':'gzip','If-None-Match':css.headers.get('etag')}});
+  assert.equal(gzip.status,200,'Brotli ETag must not match a gzip body');
+  assert.equal(gzip.headers.get('content-encoding'),'gzip');
+  assert.notEqual(gzip.headers.get('etag'),css.headers.get('etag'));
+  for(const path of ['/admin','/order']){
+    const page=await fetch(url+path);
+    assert.equal(page.status,200);
+    assert.match(page.headers.get('cache-control'),/no-store/);
+    assert.equal(page.headers.get('x-robots-tag'),'noindex,nofollow');
+  }
+  const health=await fetch(url+'/api/health');
+  assert.match(health.headers.get('cache-control'),/no-store/);
+  assert.equal(health.headers.get('x-robots-tag'),'noindex,nofollow');
+});
+
+test('public campaign images reuse conditional ETags while preserving original bytes',async()=>{
+  for(const path of ['/media/fte','/media/aura','/campaign-facial-treatment-essence-hd-v7.webp']){
+    const first=await fetch(url+path);
+    assert.equal(first.status,200,path);
+    assert.match(first.headers.get('content-type'),/image\/webp/);
+    const etag=first.headers.get('etag');
+    assert.match(etag||'',/^"m-[0-9a-f]{24}"$/);
+    const data=new Uint8Array(await first.arrayBuffer());
+    assert.ok(data.length>300000,path+' must preserve original HD photo');
+    const repeat=await fetch(url+path,{headers:{'If-None-Match':etag}});
+    assert.equal(repeat.status,304,path+' should avoid retransmitting unchanged photos');
+    assert.equal((await repeat.arrayBuffer()).byteLength,0);
+  }
+});

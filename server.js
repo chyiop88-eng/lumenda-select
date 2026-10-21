@@ -5,6 +5,7 @@ import {buildSellerQuote,checkoutAmountCents,stripeCheckoutParams,quoteHash,paid
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { readFileSync } from 'node:fs';
+import { brotliCompressSync, gzipSync, constants as ZLIB } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -49,17 +50,40 @@ const HD_MEDIA = {
   '/campaign-genoptics-aura-essence-hd-v7.webp': 'hd-art/aura-q94.webp'
 };
 const HD_CACHE = new Map();
-function getHDImage(path){
-  const relative=HD_MEDIA[path]; if (!relative)return null;
-  if (HD_CACHE.has(path))return HD_CACHE.get(path);
-  try {const data=readFileSync(join(ROOT,'public',relative));HD_CACHE.set(path,data);return data;}
-  catch(e){console.error('Campaign image failed',e?.message);return null;}
+const PHOTO_CACHE=new Map();
+const PHOTO_CACHE_TTL_MS=90_000;
+function clientHasEtag(headers,etag){
+  const offered=headers?.get('if-none-match')||'';
+  return offered.split(',').some(v=>v.trim()==='*'||v.trim()===etag);
 }
-function serveHD(path,method){
+function mediaEtag(bytes){
+  return '"m-'+createHash('sha256').update(bytes).digest('hex').slice(0,24)+'"';
+}
+function getHDImage(path){
+  const relative=HD_MEDIA[path];if(!relative)return null;
+  if(HD_CACHE.has(path))return HD_CACHE.get(path);
+  try{
+    const bytes=readFileSync(join(ROOT,'public',relative));
+    const record={bytes,etag:mediaEtag(bytes)};
+    HD_CACHE.set(path,record);
+    return record;
+  }catch(e){console.error('Campaign image failed',e?.message);return null;}
+}
+function imageResponse(record,mime,method,reqHeaders,cacheControl){
+  const headers={
+    'Content-Type':mime,'Content-Length':String(record.bytes.length),
+    'ETag':record.etag,'Cache-Control':cacheControl,
+    'X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex,nofollow'
+  };
+  if(clientHasEtag(reqHeaders,record.etag))
+    return new Response(null,{status:304,headers});
+  return new Response(method==='HEAD'?null:record.bytes,{headers});
+}
+function serveHD(path,method,reqHeaders){
   if(!Object.hasOwn(HD_MEDIA,path))return null;
-  const data=getHDImage(path);
-  if(!data)return new Response('Campaign image unavailable',{status:503,headers:{'Cache-Control':'no-store'}});
-  return new Response(method==='HEAD'?null:data,{headers:{'Content-Type':'image/webp','Content-Length':String(data.length),'Cache-Control':'public, max-age=86400','X-Content-Type-Options':'nosniff'}});
+  const record=getHDImage(path);
+  if(!record)return new Response('Campaign image unavailable',{status:503,headers:{'Cache-Control':'no-store'}});
+  return imageResponse(record,'image/webp',method,reqHeaders,'public, max-age=86400, must-revalidate');
 }
 
 const DB = process.env.DATABASE_URL ? postgres(process.env.DATABASE_URL, { max: 4, idle_timeout: 20 }) : null;
@@ -187,11 +211,32 @@ async function activeReferralCode(value){
   const rows=await DB`SELECT code FROM lumenda_agents WHERE code=${code} AND status='active' LIMIT 1`;
   return rows[0]?.code||null;
 }
-async function serveMedia(key,method){
-  try{await ensureMediaTable();const rows=await DB`SELECT mime,data,updated_at FROM lumenda_media WHERE key=${key} LIMIT 1`;if(rows.length){const data=rows[0].data;return new Response(method==='HEAD'?null:data,{headers:{'Content-Type':rows[0].mime,'Content-Length':String(data.length),'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex,nofollow'}});}}catch(e){console.error('Media read failed',e?.message);}
+async function serveMedia(key,method,reqHeaders){
+  const now=Date.now();
+  let entry=PHOTO_CACHE.get(key);
+  if(!entry||now-entry.checkedAt>PHOTO_CACHE_TTL_MS){
+    try{
+      await ensureMediaTable();
+      const rows=await DB`SELECT mime,data,updated_at FROM lumenda_media WHERE key=${key} LIMIT 1`;
+      if(rows.length){
+        const bytes=rows[0].data;
+        entry={checkedAt:now,mime:rows[0].mime,bytes,etag:mediaEtag(bytes)};
+      }else entry={checkedAt:now,notCustom:true};
+      PHOTO_CACHE.set(key,entry);
+    }catch(e){
+      console.error('Media read failed',e?.code||e?.name);
+      entry={checkedAt:now,notCustom:true};
+      PHOTO_CACHE.set(key,entry);
+    }
+  }
+  if(!entry.notCustom)
+    return imageResponse(entry,entry.mime,method,reqHeaders,'public, max-age=30, must-revalidate');
   const fallback=key==='fte'?'/campaign-facial-treatment-essence-hd-v7.webp':'/campaign-genoptics-aura-essence-hd-v7.webp';
-  return serveHD(fallback,method);
+  const record=getHDImage(fallback);
+  if(!record)return new Response('Campaign image unavailable',{status:503,headers:{'Cache-Control':'no-store'}});
+  return imageResponse(record,'image/webp',method,reqHeaders,'public, max-age=30, must-revalidate');
 }
+
 function unpackJsonValue(value,fallback){
   if(typeof value!=='string')return value??fallback;
   try{return JSON.parse(value);}catch{return fallback;}
@@ -302,21 +347,56 @@ function limit(req) {
   if(attempts.size>10000)attempts.clear();
   return false;
 }
-function serveFile(path, method) {
-  if(path==='/admin'||path==='/admin/') path='/admin.html';
+const PUBLIC_ASSET_CACHE=new Map();
+const COMPRESSIBLE_MIME=/^(?:text\/|application\/xml)/;
+function getStaticAsset(path,mime){
+  if(PUBLIC_ASSET_CACHE.has(path))return PUBLIC_ASSET_CACHE.get(path);
+  const bytes=readFileSync(join(ROOT,'public',path.slice(1)));
+  const etagBase=createHash('sha256').update(bytes).digest('hex').slice(0,24);
+  const encoded={identity:bytes};
+  if(COMPRESSIBLE_MIME.test(mime)){
+    encoded.br=brotliCompressSync(bytes,{params:{[ZLIB.BROTLI_PARAM_QUALITY]:4}});
+    encoded.gzip=gzipSync(bytes,{level:5});
+  }
+  const asset={encoded,etagBase};
+  PUBLIC_ASSET_CACHE.set(path,asset);
+  return asset;
+}
+function serveFile(path, method, reqHeaders){
+  if(path==='/admin'||path==='/admin/')path='/admin.html';
   if(path==='/order'||path==='/order/')path='/order.html';
   if(path==='/')path='/index.html';
   const mime=STATIC_FILES[path];if(!mime)return null;
   try{
-    const content=readFileSync(join(ROOT,'public',path.slice(1)));
-    return new Response(method==='HEAD'?null:content,{headers:{
-      'Content-Type':mime,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
-      'X-Frame-Options':'DENY','X-Robots-Tag':path==='/index.html'?'index,follow':'noindex,nofollow',
+    const asset=getStaticAsset(path,mime);
+    const encodingOffered=reqHeaders?.get('accept-encoding')||'';
+    const encoding=asset.encoded.br&&/(?:^|[,;\s])br(?:[,;\s]|$)/i.test(encodingOffered)?
+      'br':asset.encoded.gzip&&/(?:^|[,;\s])gzip(?:[,;\s]|$)/i.test(encodingOffered)?'gzip':'identity';
+    const bytes=asset.encoded[encoding];
+    const isPublicPage=path==='/index.html';
+    const isPrivatePage=path==='/admin.html'||path==='/order.html';
+    const cacheControl=isPrivatePage?'private, no-store':
+      isPublicPage?'public, max-age=60, must-revalidate':
+      'public, max-age=86400, must-revalidate';
+    const etag='"s-'+asset.etagBase+'-'+encoding+'"';
+    const headers={
+      'Content-Type':mime,'Content-Length':String(bytes.length),
+      'ETag':etag,'Vary':'Accept-Encoding',
+      'Cache-Control':cacheControl,'X-Content-Type-Options':'nosniff',
+      'X-Frame-Options':'DENY','X-Robots-Tag':isPublicPage?'index,follow':'noindex,nofollow',
       'Referrer-Policy':'strict-origin-when-cross-origin',
       'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'"
-    }});
-  }catch(e){console.error('Static file unavailable',e?.message);return new Response('Not found',{status:404});}
+    };
+    if(encoding!=='identity')headers['Content-Encoding']=encoding;
+    if(!isPrivatePage&&clientHasEtag(reqHeaders,etag))
+      return new Response(null,{status:304,headers});
+    return new Response(method==='HEAD'?null:bytes,{headers});
+  }catch(e){
+    console.error('Static file unavailable',e?.code||e?.name);
+    return new Response('Not found',{status:404});
+  }
 }
+
 // Disallow cross-origin mutation requests to authenticated endpoints.
 function validAdminOrigin(req){
   const origin=req.headers.get('origin');
@@ -786,7 +866,7 @@ async function handle(req) {
     const key=clean(path.split('/').pop(),20);if(!['fte','aura'].includes(key))return send({ok:false,error:'Invalid media key'},400);
     const mime=(req.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();if(!['image/jpeg','image/png','image/webp'].includes(mime))return send({ok:false,error:'只支援 JPG、PNG、WebP'},400);
     const data=new Uint8Array(await req.arrayBuffer());if(data.byteLength<5000||data.byteLength>4*1024*1024||!validImageBytes(data,mime))return send({ok:false,error:'圖片格式或大小無效（5 KB 至 4 MB）'},400);
-    try{await ensureMediaTable();await DB`INSERT INTO lumenda_media(key,mime,data,updated_at) VALUES (${key},${mime},${data},now()) ON CONFLICT (key) DO UPDATE SET mime=EXCLUDED.mime,data=EXCLUDED.data,updated_at=now()`;return send({ok:true,key,bytes:data.byteLength,mime});}catch(e){console.error('Media upload failed',e?.message);return send({ok:false,error:'圖片暫時未能儲存'},503);}
+    try{await ensureMediaTable();await DB`INSERT INTO lumenda_media(key,mime,data,updated_at) VALUES (${key},${mime},${data},now()) ON CONFLICT (key) DO UPDATE SET mime=EXCLUDED.mime,data=EXCLUDED.data,updated_at=now()`;PHOTO_CACHE.delete(key);return send({ok:true,key,bytes:data.byteLength,mime});}catch(e){console.error('Media upload failed',e?.message);return send({ok:false,error:'圖片暫時未能儲存'},503);}
   }
   if(path==='/api/orders' && req.method==='POST') {
     if(limit(req)) return send({ok:false,error:'請稍後再試'},429);
@@ -828,9 +908,9 @@ async function handle(req) {
       return send({ok:updated.length>0},updated.length?200:404);
     }catch(e){return send({ok:false,error:e.status?e.message:'Cannot update order'},e.status||503);}
   }
-  if((req.method==='GET'||req.method==='HEAD')&&path==='/media/fte') return (await serveMedia('fte',req.method))||new Response('Not found',{status:404});
-  if((req.method==='GET'||req.method==='HEAD')&&path==='/media/aura') return (await serveMedia('aura',req.method))||new Response('Not found',{status:404});
-  if(req.method==='GET'||req.method==='HEAD') return serveHD(path,req.method)||serveFile(path,req.method)||new Response('Not found',{status:404});
+  if((req.method==='GET'||req.method==='HEAD')&&path==='/media/fte') return (await serveMedia('fte',req.method,req.headers))||new Response('Not found',{status:404});
+  if((req.method==='GET'||req.method==='HEAD')&&path==='/media/aura') return (await serveMedia('aura',req.method,req.headers))||new Response('Not found',{status:404});
+  if(req.method==='GET'||req.method==='HEAD') return serveHD(path,req.method,req.headers)||serveFile(path,req.method,req.headers)||new Response('Not found',{status:404});
   return send({ok:false,error:'Method not allowed'},405);
  }
 const port=Number(process.env.PORT||3000);
