@@ -5,6 +5,7 @@ import {buildSellerQuote,checkoutAmountCents,stripeCheckoutParams,quoteHash,paid
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { readFileSync } from 'node:fs';
+import { brotliCompressSync, gzipSync, constants as ZLIB } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -49,17 +50,40 @@ const HD_MEDIA = {
   '/campaign-genoptics-aura-essence-hd-v7.webp': 'hd-art/aura-q94.webp'
 };
 const HD_CACHE = new Map();
-function getHDImage(path){
-  const relative=HD_MEDIA[path]; if (!relative)return null;
-  if (HD_CACHE.has(path))return HD_CACHE.get(path);
-  try {const data=readFileSync(join(ROOT,'public',relative));HD_CACHE.set(path,data);return data;}
-  catch(e){console.error('Campaign image failed',e?.message);return null;}
+const PHOTO_CACHE=new Map();
+const PHOTO_CACHE_TTL_MS=90_000;
+function clientHasEtag(headers,etag){
+  const offered=headers?.get('if-none-match')||'';
+  return offered.split(',').some(v=>v.trim()==='*'||v.trim()===etag);
 }
-function serveHD(path,method){
+function mediaEtag(bytes){
+  return '"m-'+createHash('sha256').update(bytes).digest('hex').slice(0,24)+'"';
+}
+function getHDImage(path){
+  const relative=HD_MEDIA[path];if(!relative)return null;
+  if(HD_CACHE.has(path))return HD_CACHE.get(path);
+  try{
+    const bytes=readFileSync(join(ROOT,'public',relative));
+    const record={bytes,etag:mediaEtag(bytes)};
+    HD_CACHE.set(path,record);
+    return record;
+  }catch(e){console.error('Campaign image failed',e?.message);return null;}
+}
+function imageResponse(record,mime,method,reqHeaders,cacheControl){
+  const headers={
+    'Content-Type':mime,'Content-Length':String(record.bytes.length),
+    'ETag':record.etag,'Cache-Control':cacheControl,
+    'X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex,nofollow'
+  };
+  if(clientHasEtag(reqHeaders,record.etag))
+    return new Response(null,{status:304,headers});
+  return new Response(method==='HEAD'?null:record.bytes,{headers});
+}
+function serveHD(path,method,reqHeaders){
   if(!Object.hasOwn(HD_MEDIA,path))return null;
-  const data=getHDImage(path);
-  if(!data)return new Response('Campaign image unavailable',{status:503,headers:{'Cache-Control':'no-store'}});
-  return new Response(method==='HEAD'?null:data,{headers:{'Content-Type':'image/webp','Content-Length':String(data.length),'Cache-Control':'public, max-age=86400','X-Content-Type-Options':'nosniff'}});
+  const record=getHDImage(path);
+  if(!record)return new Response('Campaign image unavailable',{status:503,headers:{'Cache-Control':'no-store'}});
+  return imageResponse(record,'image/webp',method,reqHeaders,'public, max-age=86400, must-revalidate');
 }
 
 const DB = process.env.DATABASE_URL ? postgres(process.env.DATABASE_URL, { max: 4, idle_timeout: 20 }) : null;
@@ -187,11 +211,32 @@ async function activeReferralCode(value){
   const rows=await DB`SELECT code FROM lumenda_agents WHERE code=${code} AND status='active' LIMIT 1`;
   return rows[0]?.code||null;
 }
-async function serveMedia(key,method){
-  try{await ensureMediaTable();const rows=await DB`SELECT mime,data,updated_at FROM lumenda_media WHERE key=${key} LIMIT 1`;if(rows.length){const data=rows[0].data;return new Response(method==='HEAD'?null:data,{headers:{'Content-Type':rows[0].mime,'Content-Length':String(data.length),'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex,nofollow'}});}}catch(e){console.error('Media read failed',e?.message);}
+async function serveMedia(key,method,reqHeaders){
+  const now=Date.now();
+  let entry=PHOTO_CACHE.get(key);
+  if(!entry||now-entry.checkedAt>PHOTO_CACHE_TTL_MS){
+    try{
+      await ensureMediaTable();
+      const rows=await DB`SELECT mime,data,updated_at FROM lumenda_media WHERE key=${key} LIMIT 1`;
+      if(rows.length){
+        const bytes=rows[0].data;
+        entry={checkedAt:now,mime:rows[0].mime,bytes,etag:mediaEtag(bytes)};
+      }else entry={checkedAt:now,notCustom:true};
+      PHOTO_CACHE.set(key,entry);
+    }catch(e){
+      console.error('Media read failed',e?.code||e?.name);
+      entry={checkedAt:now,notCustom:true};
+      PHOTO_CACHE.set(key,entry);
+    }
+  }
+  if(!entry.notCustom)
+    return imageResponse(entry,entry.mime,method,reqHeaders,'public, max-age=30, must-revalidate');
   const fallback=key==='fte'?'/campaign-facial-treatment-essence-hd-v7.webp':'/campaign-genoptics-aura-essence-hd-v7.webp';
-  return serveHD(fallback,method);
+  const record=getHDImage(fallback);
+  if(!record)return new Response('Campaign image unavailable',{status:503,headers:{'Cache-Control':'no-store'}});
+  return imageResponse(record,'image/webp',method,reqHeaders,'public, max-age=30, must-revalidate');
 }
+
 function unpackJsonValue(value,fallback){
   if(typeof value!=='string')return value??fallback;
   try{return JSON.parse(value);}catch{return fallback;}
