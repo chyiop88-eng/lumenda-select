@@ -866,7 +866,7 @@ async function handle(req) {
     const key=clean(path.split('/').pop(),20);if(!['fte','aura'].includes(key))return send({ok:false,error:'Invalid media key'},400);
     const mime=(req.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();if(!['image/jpeg','image/png','image/webp'].includes(mime))return send({ok:false,error:'只支援 JPG、PNG、WebP'},400);
     const data=new Uint8Array(await req.arrayBuffer());if(data.byteLength<5000||data.byteLength>4*1024*1024||!validImageBytes(data,mime))return send({ok:false,error:'圖片格式或大小無效（5 KB 至 4 MB）'},400);
-    try{await ensureMediaTable();await DB`INSERT INTO lumenda_media(key,mime,data,updated_at) VALUES (${key},${mime},${data},now()) ON CONFLICT (key) DO UPDATE SET mime=EXCLUDED.mime,data=EXCLUDED.data,updated_at=now()`;return send({ok:true,key,bytes:data.byteLength,mime});}catch(e){console.error('Media upload failed',e?.message);return send({ok:false,error:'圖片暫時未能儲存'},503);}
+    try{await ensureMediaTable();await DB`INSERT INTO lumenda_media(key,mime,data,updated_at) VALUES (${key},${mime},${data},now()) ON CONFLICT (key) DO UPDATE SET mime=EXCLUDED.mime,data=EXCLUDED.data,updated_at=now()`;PHOTO_CACHE.delete(key);return send({ok:true,key,bytes:data.byteLength,mime});}catch(e){console.error('Media upload failed',e?.message);return send({ok:false,error:'圖片暫時未能儲存'},503);}
   }
   if(path==='/api/orders' && req.method==='POST') {
     if(limit(req)) return send({ok:false,error:'請稍後再試'},429);
@@ -908,9 +908,9 @@ async function handle(req) {
       return send({ok:updated.length>0},updated.length?200:404);
     }catch(e){return send({ok:false,error:e.status?e.message:'Cannot update order'},e.status||503);}
   }
-  if((req.method==='GET'||req.method==='HEAD')&&path==='/media/fte') return (await serveMedia('fte',req.method))||new Response('Not found',{status:404});
-  if((req.method==='GET'||req.method==='HEAD')&&path==='/media/aura') return (await serveMedia('aura',req.method))||new Response('Not found',{status:404});
-  if(req.method==='GET'||req.method==='HEAD') return serveHD(path,req.method)||serveFile(path,req.method)||new Response('Not found',{status:404});
+  if((req.method==='GET'||req.method==='HEAD')&&path==='/media/fte') return (await serveMedia('fte',req.method,req.headers))||new Response('Not found',{status:404});
+  if((req.method==='GET'||req.method==='HEAD')&&path==='/media/aura') return (await serveMedia('aura',req.method,req.headers))||new Response('Not found',{status:404});
+  if(req.method==='GET'||req.method==='HEAD') return serveHD(path,req.method,req.headers)||serveFile(path,req.method,req.headers)||new Response('Not found',{status:404});
   return send({ok:false,error:'Method not allowed'},405);
  }
 const port=Number(process.env.PORT||3000);
