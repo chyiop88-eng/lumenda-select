@@ -1,0 +1,73 @@
+name: Verify LUMENDA Fast Storefront Live
+on:
+  push:
+    branches:
+      - audit/performance-live-20261022
+permissions:
+  contents: read
+jobs:
+  verify-performance-and-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Verify live home, warm HTTP timing and compressed transfer size
+        run: |
+          set -euo pipefail
+          base=https://lumenda-select-preview.onrender.com
+          curl -fsSL --retry 3 --retry-delay 3 --max-time 110 \
+            -D /tmp/home.headers -o /tmp/home.html \
+            -w 'HOME total=%{time_total}s ttfb=%{time_starttransfer}s bytes=%{size_download}\n' "$base/"
+          grep -q 'LUMENDA SELECT' /tmp/home.html
+          grep -qE '/styles.css\?v=[a-f0-9]{12}' /tmp/home.html
+          grep -qi 'x-robots-tag: index,follow' /tmp/home.headers
+          echo "----- Plain and Brotli asset transfer -----"
+          for file in styles.css i18n.js app.js; do
+            curl -fsSL --max-time 45 -H 'Accept-Encoding: identity' \
+              -o /tmp/identity.bin -D /tmp/identity.headers \
+              -w "$file identity ttfb=%{time_starttransfer}s transfer=%{size_download} bytes\n" \
+              "$base/$file"
+            plain=$(wc -c </tmp/identity.bin)
+            curl -fsSL --max-time 45 -H 'Accept-Encoding: br' \
+              -o /tmp/br.bin -D /tmp/br.headers \
+              -w "$file br ttfb=%{time_starttransfer}s transfer=%{size_download} bytes\n" \
+              "$base/$file"
+            compressed=$(wc -c </tmp/br.bin)
+            grep -qi '^content-encoding: br' /tmp/br.headers
+            grep -qi '^vary: Accept-Encoding' /tmp/br.headers
+            grep -qi '^cache-control: public, max-age=86400' /tmp/br.headers
+            test "$compressed" -lt "$plain"
+            echo "$file saved=$((100-100*compressed/plain))% raw=$plain compressed=$compressed"
+            etag=$(grep -i '^etag:' /tmp/br.headers | tail -1 | sed 's/^[^:]*: *//' | tr -d '\r')
+            status=$(curl -L -sS -o /tmp/no_body -w '%{http_code}' \
+              -H 'Accept-Encoding: br' -H "If-None-Match: $etag" "$base/$file")
+            echo "$file conditional_status=$status"
+            test "$status" = 304
+            test "$(wc -c </tmp/no_body)" -eq 0
+          done
+      - name: Verify photo ETags, admin privacy and payments safety
+        run: |
+          set -euo pipefail
+          base=https://lumenda-select-preview.onrender.com
+          curl -fsSL --max-time 90 -D /tmp/img.headers -o /tmp/img.body "$base/media/fte"
+          grep -qi '^etag:' /tmp/img.headers
+          grep -qi '^content-type: image/webp' /tmp/img.headers
+          test "$(wc -c </tmp/img.body)" -gt 300000
+          etag=$(grep -i '^etag:' /tmp/img.headers | tail -1 | sed 's/^[^:]*: *//' | tr -d '\r')
+          status=$(curl -sS -o /tmp/img304 -w '%{http_code}' -H "If-None-Match: $etag" "$base/media/fte")
+          echo "CAMPAIGN_IMAGE conditional_status=$status"
+          test "$status" = 304
+          curl -fsSL --max-time 90 -D /tmp/admin.headers -o /tmp/admin.html "$base/admin"
+          grep -qi '^cache-control: private, no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag: noindex,nofollow' /tmp/admin.headers
+          curl -fsSL --max-time 90 -o /tmp/health.json "$base/api/health"
+          node - <<'NODE'
+          const assert=require('node:assert/strict'),fs=require('node:fs');
+          const h=JSON.parse(fs.readFileSync('/tmp/health.json','utf8'));
+          assert.equal(h.ordersEnabled,true);
+          assert.equal(h.paypalCheckoutEnabled,false);
+          assert.equal(h.stripeCheckoutEnabled,false);
+          assert.equal(h.paymentsLive,false);
+          assert.deepEqual(h.featuredSKUs,['FTE230','FTE330','GENOPTICS50']);
+          console.log(JSON.stringify({status:'PASS',orders:h.ordersEnabled,
+            paypalLive:h.paymentsLive,products:h.featuredSKUs}));
+          NODE
