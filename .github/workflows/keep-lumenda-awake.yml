@@ -1,0 +1,50 @@
+name: Keep LUMENDA SELECT Warm
+
+# Free Render services sleep after 15 minutes without inbound traffic.
+# This lightweight GET is a best-effort measure: GitHub cron can be delayed
+# or disabled. Paid Render compute is required for reliable always-on hosting.
+on:
+  schedule:
+    # Minutes chosen away from :00 to reduce peak GitHub scheduling congestion.
+    # Gaps are 4-7 minutes, safely shorter than Render's 15-minute idle window
+    # when scheduled runs actually execute on time.
+    - cron: '2,9,16,23,30,37,44,51,58 * * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - ops/render-free-keep-warm-20261102
+    paths:
+      - .github/workflows/keep-lumenda-awake.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lumenda-healthcheck-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ping-public-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Wake Render and verify the public health endpoint (no orders or payments)
+        env:
+          TARGET_URL: https://lumenda-select-preview.onrender.com/api/health
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --retry 2 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 15 --max-time 95 \
+            --header 'Cache-Control: no-cache' \
+            --output /tmp/lumenda-health.json \
+            --write-out 'LUMENDA health HTTP %{http_code} | total %{time_total}s | first-byte %{time_starttransfer}s\n' \
+            "$TARGET_URL"
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const assert=require('node:assert/strict');
+          const data=JSON.parse(fs.readFileSync('/tmp/lumenda-health.json','utf8'));
+          assert.equal(data.ok,true);
+          assert.equal(data.brand,'LUMENDA SELECT');
+          console.log('Health check OK, order service availability flag:',data.ordersEnabled);
+          NODE
