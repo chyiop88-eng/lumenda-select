@@ -205,7 +205,7 @@ test('cross-page cart implementation validates selection and maintains referral 
   assert.match(pages,/lumenda_marketing_source/);
   assert.match(checkoutApp,/CART_STORAGE_KEY/);
   assert.match(checkoutApp,/sessionStorage\.setItem\(CART_STORAGE_KEY/);
-  assert.match(checkoutApp,/searchParams\.get\('add'\)/);
+  assert.match(checkoutApp,/URLSearchParams\(location\.search\)\.get\('add'\)/);
   assert.match(checkoutApp,/sessionStorage\.getItem\('lumenda_language'\)/);
   assert.match(checkoutApp,/\/api\/orders/);
   const admin=await (await fetch(url+'/admin')).text();
