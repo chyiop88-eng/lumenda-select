@@ -5,7 +5,18 @@ const PRODUCTS = __PRODUCTS_JSON__;
 const I18N = window.LUMENDA_I18N;
 if (!I18N) throw new Error('The translation dictionary did not load.');
 const $ = id => document.getElementById(id);
-const selected = {};
+// Shared session cart; only known SKUs and sane integer quantities are accepted.
+const CART_STORAGE_KEY='lumenda_cart_v1';
+const selected=(()=>{
+  let saved={};
+  try{saved=JSON.parse(sessionStorage.getItem(CART_STORAGE_KEY)||'{}');}catch{}
+  const valid={};
+  for(const product of PRODUCTS){
+    const n=Number(saved?.[product.sku]||0);
+    if(Number.isInteger(n)&&n>0&&n<=30)valid[product.sku]=n;
+  }
+  return valid;
+})();
 // Invite attribution is scoped to the visitor's browser tab; no admin credentials are used.
 const referralCode=(()=>{
   const raw=new URLSearchParams(window.location.search).get('ref');
@@ -29,18 +40,31 @@ const marketingSource=(()=>{
   }catch{}
   return allowed.has(saved)?saved:'';
 })();
+// Deep links can add an item to the existing cart once without duplicating it on refresh.
+const requestedSku=new URLSearchParams(location.search).get('add');
+if(PRODUCTS.some(p=>p.sku===requestedSku)){
+  selected[requestedSku]=Math.min(30,(selected[requestedSku]||0)+1);
+  const cleanedUrl=new URL(location.href);cleanedUrl.searchParams.delete('add');
+  history.replaceState(null,'',cleanedUrl.pathname+cleanedUrl.search+cleanedUrl.hash);
+}
 const marketSelect = $('market');
 const languageSelect = $('language');
-let language = I18N.DEFAULT_LANG.HK;
+let language=(()=>{
+  try{const saved=sessionStorage.getItem('lumenda_language');return I18N.TEXT[saved]?saved:I18N.DEFAULT_LANG.HK;}
+  catch{return I18N.DEFAULT_LANG.HK;}
+})();
 let lastResult = null;
 const tr = (key, vars) => I18N.t(language, key, vars);
 for (const [code,m] of Object.entries(MARKETS)) marketSelect.add(new Option(`${m.flag} ${m.name} · ${m.currency}`,code));
 for (const [code,label] of I18N.LANG_OPTIONS) languageSelect.add(new Option(label,code));
-marketSelect.value = 'HK';
+try{
+  const savedMarket=sessionStorage.getItem('lumenda_market');
+  marketSelect.value=Object.hasOwn(MARKETS,savedMarket)?savedMarket:'HK';
+}catch{marketSelect.value='HK';}
 languageSelect.value = language;
 function updateTranslations() {
   document.documentElement.lang = language;
-  document.title = 'LUMENDA SELECT | ' + tr('productHeading');
+  document.title = 'LUMENDA SELECT | ' + tr('checkoutHeading');
   const notice=$('referralNotice');
   if(notice){notice.hidden=!referralCode;if(referralCode)notice.textContent=tr('referralTracked')+' '+referralCode;}
   for(const el of document.querySelectorAll('[data-i18n]')) el.textContent = tr(el.dataset.i18n);
@@ -165,6 +189,8 @@ function renderCart(){
   const subtotal=$('cartSubtotal');
   if(subtotal)subtotal.textContent=yuan;
   const notice=$('cartCalculation');
+  try{sessionStorage.setItem(CART_STORAGE_KEY,JSON.stringify(selected));}catch{}
+  document.querySelectorAll('.nav-cart-count').forEach(node=>{node.textContent=String(count);});
   if(notice)notice.textContent=!count?'揀選商品後即時計算人民幣小計。':
     '已標價神仙水小計：'+yuan+(unpriced?'；購物車另有待報價商品。':'。')+
     (hkdCents?' 已標價港幣商品小計 HK$'+(hkdCents/100).toFixed(2)+'。':'')+
@@ -191,6 +217,7 @@ function setResult(data){lastResult=data;renderResult();}
 function setLanguage(lang,preserveAddress=true){
   language=I18N.TEXT[lang]?lang:'zh-Hant';
   languageSelect.value=language;
+  try{sessionStorage.setItem('lumenda_language',language);}catch{}
   updateTranslations();
   updateCountry(preserveAddress);
   renderProducts();renderCart();renderResult();
@@ -216,9 +243,12 @@ $('orderForm').addEventListener('submit',async event=>{
   }catch(e){setResult({type:'error',message:e.message});}
   finally{button.disabled=false;button.textContent=tr('submit');}
 });
-marketSelect.addEventListener('change',()=>{setLanguage(I18N.DEFAULT_LANG[marketSelect.value]||'en',false);});
+marketSelect.addEventListener('change',()=>{
+  try{sessionStorage.setItem('lumenda_market',marketSelect.value);}catch{}
+  setLanguage(I18N.DEFAULT_LANG[marketSelect.value]||'en',false);
+});
 languageSelect.addEventListener('change',()=>{setLanguage(languageSelect.value,true);});
-setLanguage(I18N.DEFAULT_LANG[marketSelect.value],false);
+setLanguage(language,false);
 
 
 // Rose Aura: lightweight cinematic light movement; visual-only enhancements.
