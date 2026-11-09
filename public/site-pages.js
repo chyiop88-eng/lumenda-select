@@ -137,6 +137,17 @@
     saveLanguage(lang);
     updateCartBadge();
   }
+  // Mark the current site section for keyboard and screen-reader navigation.
+  const currentPath=location.pathname.replace(/\/$/,'')||'/';
+  for(const item of document.querySelectorAll('.navigation-links a')){
+    const itemPath=new URL(item.href,location.origin).pathname.replace(/\/$/,'')||'/';
+    if(itemPath===currentPath||(itemPath==='/products'&&currentPath.startsWith('/product/')))
+      item.setAttribute('aria-current','page');
+  }
+  window.addEventListener('lumenda:language',event=>{
+    const lang=event.detail?.lang;
+    if(i18n.TEXT[lang])paintLanguage(lang);
+  });
   rememberMarketingContext();
   if(languagePicker&&!checkout){
     for(const [code,label] of i18n.LANG_OPTIONS)languagePicker.add(new Option(label,code));
