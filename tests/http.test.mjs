@@ -103,7 +103,7 @@ test('public assets are compressed, versioned and browser-cacheable without cach
   assert.ok(home.headers.get('etag'),'homepage should support ETag revalidation');
   const html=await home.text();
   const cssVersion=html.match(/href="\/styles\.css\?v=([a-f0-9]{12})"/)?.[1];
-  const jsVersion=html.match(/src="\/app\.js\?v=([a-f0-9]{12})"/)?.[1];
+  const jsVersion=html.match(/src="\/site-pages\.js\?v=([a-f0-9]{12})"/)?.[1];
   assert.match(cssVersion||'',/^[a-f0-9]{12}$/,'CSS URL must use asset fingerprint');
   assert.equal(cssVersion,jsVersion,'every storefront asset must use one build fingerprint');
   const css=await fetch(url+'/styles.css?v='+cssVersion,{headers:{'Accept-Encoding':'br'}});
@@ -146,4 +146,69 @@ test('public campaign images reuse conditional ETags while preserving original b
     assert.equal(repeat.status,304,path+' should avoid retransmitting unchanged photos');
     assert.equal((await repeat.arrayBuffer()).byteLength,0);
   }
+});
+
+
+test('multipage storefront has separate public catalog, product, about and private checkout URLs',async()=>{
+  const publicPages=[
+    ['/',/hero-premiere/],['/products',/catalog-grid/],
+    ['/product/fte230',/CNY ¥750/],['/product/fte330',/CNY ¥990/],
+    ['/product/genoptics50',/另行報價/],['/about',/guide-grid/]
+  ];
+  for(const [path,marker] of publicPages){
+    const res=await fetch(url+path);
+    assert.equal(res.status,200,path);
+    assert.equal(res.headers.get('x-robots-tag'),'index,follow',path);
+    const html=await res.text();
+    assert.match(html,marker,path);
+    assert.match(html,/<meta name="robots" content="index,follow/,path);
+    assert.match(html,/rel="canonical"/,path);
+    assert.match(html,/href="\/products"/,path);
+    assert.match(html,/href="\/checkout"/,path);
+    assert.match(html,/src="\/site-pages\.js\?v=[0-9a-f]{12}"/,path);
+  }
+  const home=await (await fetch(url+'/')).text();
+  assert.doesNotMatch(home,/id="orderForm"/,'homepage must not be a single-page checkout');
+  assert.doesNotMatch(home,/id="conciergeForm"/,'customer service automation outside handoff scope');
+  const checkout=await fetch(url+'/checkout?add=FTE230');
+  assert.equal(checkout.status,200);
+  assert.equal(checkout.headers.get('x-robots-tag'),'noindex,nofollow');
+  assert.match(checkout.headers.get('cache-control'),/private, no-store/);
+  const html=await checkout.text();
+  assert.match(html,/id="productsGrid"/);
+  assert.match(html,/id="orderForm"/);
+  assert.match(html,/id="cartLines"/);
+  assert.match(html,/id="referralNotice"/);
+  assert.match(html,/src="\/app\.js\?v=[0-9a-f]{12}"/);
+  assert.doesNotMatch(html,/id="conciergeForm"/);
+  for(const page of ['/products/','/about/','/checkout/','/product/fte230/']){
+    const res=await fetch(url+page);assert.equal(res.status,200,page);
+  }
+  const unknown=await fetch(url+'/product/nonexistent');
+  assert.equal(unknown.status,404);
+  const robots=await (await fetch(url+'/robots.txt')).text();
+  assert.match(robots,/Disallow: \/checkout/);
+  const sitemap=await (await fetch(url+'/sitemap.xml')).text();
+  for(const slug of ['/products','/product/fte230','/product/fte330','/product/genoptics50','/about'])
+    assert.ok(sitemap.includes('onrender.com'+slug),'Missing public sitemap path '+slug);
+  assert.doesNotMatch(sitemap,/\/checkout|\/admin|\/order/);
+});
+
+test('cross-page cart implementation validates selection and maintains referral and language state',async()=>{
+  const pages=await (await fetch(url+'/site-pages.js')).text();
+  const checkoutApp=await (await fetch(url+'/app.js')).text();
+  assert.match(pages,/lumenda_cart_v1/);
+  assert.match(pages,/VALID_SKUS/);
+  assert.match(pages,/data-add-sku/);
+  assert.match(pages,/sessionStorage\.setItem\(CART_KEY/);
+  assert.match(pages,/lumenda_referral/);
+  assert.match(pages,/lumenda_marketing_source/);
+  assert.match(checkoutApp,/CART_STORAGE_KEY/);
+  assert.match(checkoutApp,/sessionStorage\.setItem\(CART_STORAGE_KEY/);
+  assert.match(checkoutApp,/searchParams\.get\('add'\)/);
+  assert.match(checkoutApp,/sessionStorage\.getItem\('lumenda_language'\)/);
+  assert.match(checkoutApp,/\/api\/orders/);
+  const admin=await (await fetch(url+'/admin')).text();
+  assert.match(admin,/Muse 客服回覆｜未來接入/);
+  assert.match(admin,/readonly/);
 });
