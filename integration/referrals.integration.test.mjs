@@ -74,7 +74,8 @@ test('agent invite lifecycle and real order attribution',async()=>{
   assert.equal(finalOrders.body.orders.find(o=>o.id===inactiveOrder.body.orderId)?.referral_code,null);
   const afterDisable=await api('/api/admin/agents',{headers:auth});
   assert.equal(afterDisable.body.agents.find(a=>a.code===code)?.order_count,1);
-  const site=await fetch(base+'/');const page=await site.text();assert.match(page,/id="referralNotice"/);
+  const site=await fetch(base+'/checkout');const page=await site.text();
+  assert.match(page,/id="referralNotice"/,'referral notice belongs to private checkout');
   const appJS=await (await fetch(base+'/app.js')).text();assert.match(appJS,/lumenda_referral/);
   const adminPage=await (await fetch(base+'/admin')).text();assert.match(adminPage,/id="createAgent"/);
   const adminJS=await (await fetch(base+'/admin.js')).text();assert.match(adminJS,/referral_code/);
