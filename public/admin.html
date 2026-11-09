@@ -23,6 +23,12 @@
 <button type="button" class="btn outline" id="nextContacts">下一頁</button></div>
 <div id="contactsStatus" class="status" role="status" aria-live="polite"></div>
 <div id="contactsList" class="contacts-list"></div></section>
+<section class="card" id="museFutureIntegration" style="margin-top:16px" aria-labelledby="museFutureTitle">
+<h3 id="museFutureTitle">💬 Muse 客服回覆｜未來接入</h3>
+<p class="muted">預留給客人日後接入 Muse 客服功能。現時 Muse 未提供可用 API，此區只係後台 UI 位置，唔會收發訊息或者自動回覆。</p>
+<div class="field"><label for="museFutureStatus">Muse 接駁狀態</label><input id="museFutureStatus" type="text" value="未接入｜預留位置" readonly aria-describedby="museFutureNote"></div>
+<p class="hint" id="museFutureNote">毋須輸入 API Key；目前不會將客戶資料傳送至 Muse。日後有官方接駁方式，再由店主自行設定。</p>
+</section>
 <section class="card" style="margin-top:16px"><h3>🤖 訂單 Bot／PayPal · FPS · USDT 收款</h3>
 <p class="muted">網站客服先用安全規則回覆，並為每張新訂單提供私人進度連結。你日後喺 Render Environment 加 `XAI_API_KEY`、設 `XAI_BOT_ENABLED=true`，先會試用 Grok API（第三方用量可能收費）。</p>
 <p class="muted">線上付款：先由伺服器按購物車計 HKD 正式報價。PayPal 官方 API 可建立核准付款頁，只有正式 Capture 核實金額一致，訂單先會自動顯示已付款。<strong>FPS 同 USDT 必須由店主獨立核對銀行／鏈上入帳</strong>。</p>
