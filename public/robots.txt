@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /checkout
 Disallow: /order
 Disallow: /api/
 Sitemap: https://lumenda-select-preview.onrender.com/sitemap.xml

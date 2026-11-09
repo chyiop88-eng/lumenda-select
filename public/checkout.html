@@ -1,0 +1,69 @@
+<!doctype html><html lang="zh-Hant"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#310d1d">
+<title>購物車及訂單查詢｜LUMENDA SELECT</title>
+<meta name="description" content="LUMENDA SELECT 購物車及收件資料查詢，提交後等待正式港幣報價及供應確認，不會即時扣款。">
+<link rel="icon" type="image/png" href="/lumenda-favicon.png">
+<link rel="stylesheet" href="/styles.css"></head>
+<body class="rose-aura-site inner-site" data-site-route="/checkout">
+<div class="ambient" aria-hidden="true"><span class="ambient__orb orb-one"></span><span class="ambient__orb orb-two"></span><span class="ambient__orb orb-three"></span><span class="ambient__grain"></span></div>
+<header class="site-header">
+  <nav class="site-nav shell" aria-label="Primary navigation">
+    <a class="brand-link" href="/" aria-label="LUMENDA SELECT home">
+      <span class="brand-icon" aria-hidden="true">✧</span><span class="brand-wordmark">LUMENDA <em>SELECT</em><small data-i18n="brandSub">精選美妝 · 獨立零售商</small></span>
+    </a>
+    <div class="navigation-links">
+  <a href="/" data-site-text="home">首頁</a>
+  <a href="/products" data-site-text="catalog">所有商品</a>
+  <a href="/about" data-site-text="about">購物須知</a>
+  <a href="/checkout" aria-current="page"><span data-site-text="cartNav">購物車</span> <span class="nav-cart-count" aria-label="購物車件數">0</span></a>
+  </div>
+    <div class="nav-controls"><div class="country-picker"><label for="market" data-i18n="marketLabel">收件國家／地區</label><select id="market"></select></div><div class="country-picker"><label for="language" data-i18n="languageLabel">網站語言</label><select id="language" aria-label="Website language"></select></div></div>
+  </nav>
+</header>
+<div class="shipping-banner" role="note"><span class="shipping-banner__spark" aria-hidden="true">✦</span><strong data-i18n="shippingHeadline">滿 HK$4,000 免運費</strong><span class="shipping-banner__info" data-i18n="shippingDetails">按賣家確認嘅港幣商品小計計算；未滿 HK$4,000，運費與適用稅費按收件地另行報價。免運不等於免稅。</span></div>
+
+<main>
+<section class="inner-hero inner-hero--checkout"><div class="shell"><span class="eyebrow">YOUR SELECTION / ORDER ENQUIRY</span><h1 data-site-text="checkoutTitle">購物車與訂單查詢</h1><p data-site-text="checkoutIntro">選擇產品、填寫聯絡與配送資料，提交後等候正式港幣報價。</p>
+<div class="crumb"><a href="/products" data-site-text="catalog">所有商品</a> / <span data-site-text="cartNav">購物車</span></div></div></section>
+<section class="products-stage reveal" id="products">
+ <div class="shell products-stage__inner"><div class="section-head section-head--products"><span class="section-head__line" aria-hidden="true"></span><div><p class="eyebrow" data-i18n="curated">OUR SELECTION</p><h2 data-i18n="productHeading">SK-II 明星產品 · 立即查詢</h2><p data-i18n="productNote">神仙水 230ml ¥750、330ml ¥990（CNY），另有小燈泡可查詢；港幣結帳金額待正式報價。</p></div><span class="section-head__line" aria-hidden="true"></span></div>
+ <div class="grid" id="productsGrid"></div></div>
+</section>
+
+<section class="checkout-stage" id="checkout">
+ <div class="shell"><div class="section-head section-head--checkout reveal"><span class="section-head__line" aria-hidden="true"></span><div><p class="eyebrow" data-i18n="enquiry">PERSONAL ORDER ENQUIRY</p><h2 data-i18n="checkoutHeading">結帳資料 · 六地配送</h2><p class="checkout-stage__caption">LUMENDA SELECT · EXCLUSIVE ENQUIRY SERVICE</p></div><span class="section-head__line" aria-hidden="true"></span></div>
+ <p id="referralNotice" class="referral-notice" hidden></p>
+<div class="checkout"><form id="orderForm" class="card" novalidate>
+<div class="section-heading"><b>1</b><h3 data-i18n="sectionOne">收件人及聯絡方法</h3></div>
+<div class="field-grid">
+<div class="field"><label for="recipient"><span data-i18n="recipient">收件人全名</span> <span class="required">*</span></label><input id="recipient" name="recipient" required maxlength="100" autocomplete="name" data-i18n-placeholder="recipientPlaceholder" placeholder="請填真實收件姓名"></div>
+<div class="field"><label for="phone"><span data-i18n="phone">手機號碼</span> <span class="required">*</span></label><div class="country-phone"><div class="dial" id="dial">+852</div><input id="phone" name="phone" required maxlength="22" inputmode="tel" autocomplete="tel-national" data-i18n-placeholder="phonePlaceholder" placeholder="例如 91234567"></div><span class="hint" data-i18n="phoneHint">請填當地手機號碼，系統會記錄國際區號</span></div>
+<div class="field"><label for="email" data-i18n="email">電子郵件（選填）</label><input id="email" name="email" type="email" maxlength="140" autocomplete="email" placeholder="email@example.com"></div>
+<div class="field"><label for="contactMethod" data-i18n="contactMethod">聯絡方式</label><select id="contactMethod" name="contactMethod"><option value="WhatsApp">WhatsApp</option><option value="LINE">LINE</option><option value="WeChat">WeChat</option><option value="Zalo">Zalo</option><option value="Phone">電話</option><option value="Email">電郵</option></select></div>
+<div class="field"><label for="contactId" data-i18n="contactId">WhatsApp / LINE / 微信 / Zalo ID（選填）</label><input id="contactId" name="contactId" maxlength="100" data-i18n-placeholder="contactIdPlaceholder" placeholder="方便賣家聯絡"></div>
+<div class="field"><label for="company" data-i18n="company">公司名稱（選填）</label><input id="company" name="company" maxlength="120" data-i18n-placeholder="companyPlaceholder" placeholder="如寄公司地址"></div>
+</div>
+<div class="section-heading"><b>2</b><h3 data-i18n="sectionTwo">配送地址及物流資料</h3></div>
+<div class="notice" id="countryHint" style="margin-bottom:15px"></div>
+<div class="field-grid" id="addressFields"></div>
+<div class="field-grid" style="margin-top:14px"><div class="field"><label for="deliverySpeed" data-i18n="deliverySpeed">運送方式</label><select id="deliverySpeed" name="deliverySpeed"><option value="standard" data-i18n="standard">標準配送（待報價）</option><option value="express" data-i18n="express">快遞／急件查詢</option></select></div><div class="field"><label for="deliveryNote" data-i18n="deliveryNote">物流備註（選填）</label><input id="deliveryNote" maxlength="300" name="deliveryNote" data-i18n-placeholder="deliveryNotePlaceholder" placeholder="例：送貨時間、門禁、樓宇指示"></div></div>
+<div class="section-heading"><b>3</b><h3 data-i18n="sectionThree">希望使用嘅付款方式</h3></div>
+<div class="field-grid"><div class="field wide"><label for="paymentMethod"><span data-i18n="paymentPreference">付款方式偏好</span> <span class="required">*</span></label><select id="paymentMethod" name="paymentMethod" required></select><div class="hint" id="paymentHint"></div></div><div class="field wide" id="otherPaymentWrap" hidden><label for="otherPayment"><span data-i18n="otherPayment">其他付款方式／問題</span> <span class="required">*</span></label><input id="otherPayment" name="otherPayment" maxlength="200" data-i18n-placeholder="otherPaymentPlaceholder" placeholder="例如其他銀行轉帳、電子錢包或付款查詢"></div><div class="field wide"><label for="orderNote" data-i18n="orderNote">訂單備註（選填）</label><textarea id="orderNote" name="orderNote" rows="3" maxlength="500" data-i18n-placeholder="orderNotePlaceholder" placeholder="貨品規格、數量或其他要求"></textarea></div></div>
+<p class="notice" style="margin:19px 0" data-i18n="paymentDisclosure">選擇 FPS、PayPal 或 USDT 只係表達付款偏好，唔代表已經付款。賣家確認正式報價、合規性及帳戶資料後，先會提供實際付款指示。請勿填入銀行密碼、錢包私鑰或信用卡號碼。</p>
+<p class="hint">如果你經推廣連結進入，本店只會喺你提交訂單時記錄來源平台名稱（例如 Facebook 或 88DB），作訂單渠道統計；唔會藉此跨站追蹤。 / We save only the referring platform label when you submit an order, with no cross-site tracking.</p>
+<div class="check"><input id="privacy" name="privacy" type="checkbox" required><label for="privacy"><span data-i18n="consent">我同意賣家使用我填寫嘅姓名、電話及地址處理訂單、安排配送同聯絡我；我明白網站係獨立賣家，唔係 SK-II 官方，以及提交唔代表付款成功。</span> <span class="required">*</span></label></div>
+<input type="text" name="website" id="website" style="position:absolute;left:-9999px" tabindex="-1" autocomplete="off" aria-hidden="true">
+<button type="submit" class="btn" id="submitOrder" style="width:100%;margin-top:20px" data-i18n="submit">提交訂單申請 · 不會扣款</button><div id="result" role="status" aria-live="polite" class="status"></div>
+</form>
+<aside class="card"><h3><span data-i18n="cartTitle">你嘅購物車</span> <span id="cartCount" class="pill">0</span></h3><div id="cartLines"><p class="muted" data-i18n="cartEmpty">尚未選擇商品</p></div><div class="cart-price-summary"><div class="cart-price-summary__line"><span>神仙水商品小計（CNY）</span><strong id="cartSubtotal">¥0.00</strong></div><p id="cartCalculation" class="hint" aria-live="polite">選擇商品即可即時計算人民幣小計；港幣結帳須由賣家確認匯率。</p><div class="cart-price-summary__line"><span>運費及稅費</span><strong>待核實</strong></div><div class="cart-price-summary__line"><span>正式應付總額</span><strong>待店主確認</strong></div></div><p class="muted" id="currencyMessage">商品標價 CNY 人民幣；付款 HKD 港幣，以正式匯率報價為準。</p><p class="shipping-small">神仙水 230ml ¥750／支，330ml ¥990／支（人民幣 CNY）；小燈泡待報價。PayPal 港幣金額、HK$4,000 免運門檻及適用稅費以賣家確認嘅港幣報價為準。</p><hr style="border:0;border-top:1px solid #eadde1"><p class="hint" data-i18n="cartNotice">此網站僅記錄訂單資料及付款偏好，暫無即時收款。當你收到正式付款通知前，請勿轉帳。</p></aside>
+</div>
+ </div>
+</section>
+
+</main>
+<footer class="glow-footer"><div class="footer__ripple" aria-hidden="true"></div><div class="shell footer__inner"><div class="footer__top"><div><span class="footer__brand">LUMENDA <em>SELECT</em></span><p data-i18n="footerRetailer">Independent Beauty Retailer · 獨立護膚精選零售商</p></div><a href="/" class="footer__up" aria-label="Back to top">↑</a></div><div class="footer__line"></div><p data-i18n="footerAffiliation">SK-II 商標屬其權利人所有。本網站與 SK-II、P&G 並無官方授權或隸屬關係。</p><p data-i18n="footerTerms">退換貨、價格、庫存、稅項及運送條款以最終確認為準；尚未提供即時付款。</p><div class="footer__bottom"><span>© 2026 LUMENDA SELECT</span><span>SELECTED WITH CARE <i aria-hidden="true">✧</i></span></div></div></footer>
+<div class="disclaimer" data-i18n="disclaimer">提交訂單查詢，不會立即扣款。價格及配送待店主確認。</div>
+<script src="/i18n.js" defer></script><script src="/site-pages.js" defer></script><script src="/app.js" defer></script>
+<noscript><p class="noscript">請開啟 JavaScript 以填寫物流及訂單資料。</p></noscript>
+</body></html>

@@ -40,7 +40,10 @@ test('v13 CRM, bot, price, private receipt and payment confirmation lifecycle',a
  assert.equal(bot.status,200);assert.equal(bot.body.mode,'rules');assert.match(bot.body.reply,/HK\$4,000/);
  const privateBot=await api('/api/bot/reply',{method:'POST',...j({message:'我電話號碼91234567',language:'zh-Hant'})});
  assert.equal(privateBot.status,200);assert.match(privateBot.body.reply,/私隱/);
- const page=await fetch(base+'/');assert.equal(page.status,200);assert.match(await page.text(),/conciergeMessages/);
+ const page=await fetch(base+'/');assert.equal(page.status,200);
+ assert.doesNotMatch(await page.text(),/conciergeMessages/,'standalone homepage must not expose customer chat form');
+ const checkout=await fetch(base+'/checkout');assert.equal(checkout.status,200);
+ assert.match(await checkout.text(),/id="orderForm"/);
  for(const path of ['/bot.js','/order','/order.js']){
   const r=await fetch(base+path);assert.equal(r.status,200,path);
  }

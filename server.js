@@ -16,7 +16,13 @@ const STATIC_FILES={
   '/index.html':'text/html; charset=utf-8', '/admin.html':'text/html; charset=utf-8',
   '/styles.css':'text/css; charset=utf-8','/app.js':'text/javascript; charset=utf-8',
   '/i18n.js':'text/javascript; charset=utf-8','/admin.js':'text/javascript; charset=utf-8','/bot.js':'text/javascript; charset=utf-8','/order.js':'text/javascript; charset=utf-8','/order.html':'text/html; charset=utf-8','/lumenda-favicon.png':'image/png',
-  '/robots.txt':'text/plain; charset=utf-8','/sitemap.xml':'application/xml; charset=utf-8'
+  '/robots.txt':'text/plain; charset=utf-8','/sitemap.xml':'application/xml; charset=utf-8',
+  '/site-pages.js':'text/javascript; charset=utf-8',
+  '/products.html':'text/html; charset=utf-8','/checkout.html':'text/html; charset=utf-8',
+  '/about.html':'text/html; charset=utf-8',
+  '/product-fte230.html':'text/html; charset=utf-8',
+  '/product-fte330.html':'text/html; charset=utf-8',
+  '/product-genoptics50.html':'text/html; charset=utf-8'
 };
 const MARKETS = JSON.parse(readFileSync(join(ROOT, 'config', 'markets.json'), 'utf8'));
 const PRODUCTS = JSON.parse(readFileSync(join(ROOT, 'config', 'products.json'), 'utf8'));
@@ -366,6 +372,15 @@ function serveFile(path, method, reqHeaders){
   if(path==='/admin'||path==='/admin/')path='/admin.html';
   if(path==='/order'||path==='/order/')path='/order.html';
   if(path==='/')path='/index.html';
+  const pageRoutes={
+    '/products':'/products.html','/products/':'/products.html',
+    '/checkout':'/checkout.html','/checkout/':'/checkout.html',
+    '/about':'/about.html','/about/':'/about.html',
+    '/product/fte230':'/product-fte230.html','/product/fte230/':'/product-fte230.html',
+    '/product/fte330':'/product-fte330.html','/product/fte330/':'/product-fte330.html',
+    '/product/genoptics50':'/product-genoptics50.html','/product/genoptics50/':'/product-genoptics50.html'
+  };
+  if(Object.hasOwn(pageRoutes,path))path=pageRoutes[path];
   const mime=STATIC_FILES[path];if(!mime)return null;
   try{
     const asset=getStaticAsset(path,mime);
@@ -373,8 +388,11 @@ function serveFile(path, method, reqHeaders){
     const encoding=asset.encoded.br&&/(?:^|[,;\s])br(?:[,;\s]|$)/i.test(encodingOffered)?
       'br':asset.encoded.gzip&&/(?:^|[,;\s])gzip(?:[,;\s]|$)/i.test(encodingOffered)?'gzip':'identity';
     const bytes=asset.encoded[encoding];
-    const isPublicPage=path==='/index.html';
-    const isPrivatePage=path==='/admin.html'||path==='/order.html';
+    const isPublicPage=[
+      '/index.html','/products.html','/about.html',
+      '/product-fte230.html','/product-fte330.html','/product-genoptics50.html'
+    ].includes(path);
+    const isPrivatePage=['/admin.html','/order.html','/checkout.html'].includes(path);
     const cacheControl=isPrivatePage?'private, no-store':
       isPublicPage?'public, max-age=60, must-revalidate':
       'public, max-age=86400, must-revalidate';

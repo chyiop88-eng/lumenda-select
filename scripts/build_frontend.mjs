@@ -15,15 +15,15 @@ writeFileSync(join(dir,'app.js'),source,'utf8');
 // Version HTML references to CSS/JS for safe long-lived browser caching.
 // A deployment changes the version if any frontend asset changes, so returning
 // customers never get mixed stale JS and new page markup.
-const resources=['app.js','i18n.js','styles.css','bot.js','admin.js','order.js'];
+const resources=['app.js','site-pages.js','i18n.js','styles.css','bot.js','admin.js','order.js'];
 const hash=createHash('sha256');
 for(const name of resources)hash.update(readFileSync(join(dir,name)));
 const fingerprint=hash.digest('hex').slice(0,12);
-for(const page of ['index.html','admin.html','order.html']){
+for(const page of ['index.html','products.html','product-fte230.html','product-fte330.html','product-genoptics50.html','checkout.html','about.html','admin.html','order.html']){
   const file=join(dir,page);
   const old=readFileSync(file,'utf8');
   const stamped=old.replace(
-    /((?:src|href)="\/(?:styles\.css|app\.js|admin\.js|i18n\.js|bot\.js|order\.js))(?:\?v=[a-f0-9]{12})?"/g,
+    /((?:src|href)="\/(?:styles\.css|app\.js|site-pages\.js|admin\.js|i18n\.js|bot\.js|order\.js))(?:\?v=[a-f0-9]{12})?"/g,
     (_full,start)=>start+'?v='+fingerprint+'"');
   writeFileSync(file,stamped,'utf8');
 }
