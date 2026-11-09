@@ -218,6 +218,7 @@ function setLanguage(lang,preserveAddress=true){
   language=I18N.TEXT[lang]?lang:'zh-Hant';
   languageSelect.value=language;
   try{sessionStorage.setItem('lumenda_language',language);}catch{}
+  window.dispatchEvent(new CustomEvent('lumenda:language',{detail:{lang:language}}));
   updateTranslations();
   updateCountry(preserveAddress);
   renderProducts();renderCart();renderResult();
